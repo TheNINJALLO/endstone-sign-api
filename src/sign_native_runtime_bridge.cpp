@@ -1,3 +1,4 @@
+#include "bedrock/entity/components/actor_owner_component.h"
 #include "bedrock/entity/components/player_component.h"
 #include "bedrock/world/actor/player/player.h"
 #include "endstone/core/level/dimension.h"
@@ -14,6 +15,19 @@
 #else
 #error "The exact Sign adapter supports only Windows and Linux"
 #endif
+
+// WeakEntityRef<Player>::tryUnwrap ultimately needs this small lookup. Keeping
+// the exact lookup local prevents the linker from importing actor.cpp, whose
+// many unrelated actor helpers transitively import the item registry.
+ENDSTONE_SIGN_LOCAL Actor *
+Actor::tryGetFromEntity(const EntityContext &entity, const bool include_removed) {
+  auto *component = entity.tryGetComponent<ActorOwnerComponent>();
+  if (!component)
+    return nullptr;
+
+  auto &actor = component->getActor();
+  return !actor.removed_ || include_removed ? &actor : nullptr;
+}
 
 // EndstonePlayer::getHandle() instantiates this one private helper. Supplying
 // the matching v0.11.6 implementation here keeps the linker from importing

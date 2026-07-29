@@ -1,4 +1,5 @@
 #include "endstone_sign/bds_26_30_adapter.h"
+#include "endstone_sign/experimental_bds_26_30_adapter.h"
 
 #include "endstone_sign/generated/native_manifest_data.h"
 #include "endstone_sign/native_binary_identity.h"
@@ -14,6 +15,9 @@
 
 #ifndef ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
 #define ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE 0
+#endif
+#ifndef ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
+#define ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE 0
 #endif
 
 namespace endstone_sign {
@@ -180,6 +184,10 @@ std::shared_ptr<ISignAdapter> makeBds2630SignAdapter(endstone::Server &server) {
     auto report = inspectBds2630SignActivation(server);
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
     if (report.complete()) return makeVerifiedBds2630SignAdapter(server);
+#endif
+#if ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
+    if (report.runtime_version_match && report.endstone_version_match)
+        return makeExperimentalBds2630SignAdapter(server);
 #endif
     return std::make_shared<GuardedBds2630SignAdapter>(std::move(report));
 }

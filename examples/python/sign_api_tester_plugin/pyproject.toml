@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=80", "wheel>=0.45"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "endstone-sign-tester"
+version = "0.2.0a1"
+description = "In-game exact-build probe and JSON evidence recorder for Endstone Sign API"
+readme = "README.md"
+requires-python = "==3.14.*"
+dependencies = [
+    "endstone==0.11.6",
+]
+
+[project.entry-points."endstone"]
+"sign-tester" = "endstone_sign_tester:SignApiTesterPlugin"
+
+[tool.setuptools]
+packages = ["endstone_sign_tester", "endstone_sign"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+endstone_sign_tester = [
+    "_endstone_sign_live*.pyd",
+    "_endstone_sign_live*.so",
+]

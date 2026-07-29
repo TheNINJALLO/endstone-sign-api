@@ -13,6 +13,8 @@ class ExactEndstoneDependencies(ConanFile):
     }
 
     def requirements(self):
+        # These versions match Endstone v0.11.6. The exact plugin includes
+        # private Bedrock headers and therefore cannot float this graph.
         self.requires("base64/0.5.2")
         self.requires("concurrentqueue/1.0.4")
         self.requires("cpptrace/1.0.4")
@@ -40,6 +42,7 @@ class ExactEndstoneDependencies(ConanFile):
     def generate(self):
         CMakeDeps(self).generate()
         tc = CMakeToolchain(self)
+        # CMake refuses a plugin configured for a different runtime build.
         tc.variables["ENDSTONE_CONAN_BDS_BUILD"] = str(self.options.bds_build)
         tc.preprocessor_definitions["ENTT_SPARSE_PAGE"] = 2048
         tc.preprocessor_definitions["ENTT_NO_MIXIN"] = "1"

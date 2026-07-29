@@ -8,6 +8,10 @@
 #include <memory>
 #include <string>
 
+#ifndef ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
+#define ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE 0
+#endif
+
 class SignApiPlugin : public endstone::Plugin {
 public:
     void onEnable() override {
@@ -19,7 +23,7 @@ public:
 #endif
         service_ = std::make_shared<endstone_sign::SignService>(adapter_);
         const auto caps = service_->capabilities();
-        if (!caps.completeControl()) {
+        if (!caps.completeControl() && !ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE) {
             const auto report = endstone_sign::inspectBds2630SignActivation(getServer());
             std::string message =
                 "Sign API refused to register endstone:sign:v2 because complete native control "
@@ -37,6 +41,12 @@ public:
             return;
         }
 
+        if (!caps.completeControl()) {
+            getLogger().warning(
+                "EXPERIMENTAL TEST BUILD: registering endstone:sign:v2 before native "
+                "symbol and disposable-world probe verification; do not use on a production world");
+        }
+
         provider_ = std::make_shared<endstone_sign::LiveSignServiceProvider>(service_);
         getServer().getServiceManager().registerService(
             std::string(endstone_sign::SignServiceName),
@@ -45,7 +55,8 @@ public:
             endstone::ServicePriority::Normal);
         getLogger().info(
             std::string("Sign API ") + ENDSTONE_SIGN_VERSION +
-            " registered complete service " + std::string(endstone_sign::SignServiceName) +
+            (caps.completeControl() ? " registered complete service " : " registered experimental service ") +
+            std::string(endstone_sign::SignServiceName) +
             " using " + service_->adapterName());
     }
 

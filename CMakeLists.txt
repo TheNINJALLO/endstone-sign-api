@@ -256,7 +256,10 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         )
     endif()
 
-    set(SIGN_PLUGIN_SOURCES src/plugin.cpp)
+    set(SIGN_PLUGIN_SOURCES
+        src/plugin.cpp
+        src/sign_native_runtime_bridge.cpp
+    )
     if(ENDSTONE_SIGN_BUILD_NATIVE_2630)
         list(APPEND SIGN_PLUGIN_SOURCES src/bds_26_30_adapter.cpp)
     endif()

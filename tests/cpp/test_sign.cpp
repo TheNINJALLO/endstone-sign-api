@@ -41,6 +41,18 @@ SignPlaceRequest standing(
 } // namespace
 
 int main() {
+    assert(signActorStatusName(SignActorStatus::Captured) == "captured");
+    assert(signActorStatusName(SignActorStatus::ExperimentalTextCaptured) ==
+           "experimental_text_captured");
+    assert(signActorStatusName(SignActorStatus::ChunkUnavailable) ==
+           "chunk_unavailable");
+    assert(signActorStatusName(SignActorStatus::NoBlockActor) == "no_block_actor");
+    assert(signActorStatusName(SignActorStatus::WrongBlockActorType) ==
+           "wrong_block_actor_type");
+    assert(signActorStatusName(SignActorStatus::SymbolGateClosed) ==
+           "symbol_gate_closed");
+    assert(signActorStatusName(SignActorStatus::AdapterError) == "adapter_error");
+
     const std::string abc = "abc";
     const auto abc_bytes = std::span<const std::byte>(
         reinterpret_cast<const std::byte *>(abc.data()), abc.size());

@@ -8,6 +8,33 @@ Install the native plugin and the matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands can edit or
 remove the sign at the explicit coordinates selected with `/signprobe begin`.
 
+## Alpha.3 Linux short-text probe
+
+Start with a normal, unwaxed sign that has no filtered text or text object. The
+first probe deliberately accepts only messages and owner XUIDs of at most 22
+UTF-8 bytes; the message limit includes the three `|` line separators.
+
+```text
+/signprobe status
+/signprobe begin 47 22 68
+/signprobe capture
+/signprobe text back test|||
+/signprobe capture
+/signprobe text front test|||
+/signprobe capture
+/signprobe path
+```
+
+Before either text command, `status` must show adapter
+`bds-1.26.33.1-experimental-linux-plain-text`, with `exact_build_match`,
+`exact_binary_hash_match`, `read_text`, `write_text`, `front_and_back`, and
+`per_line_write` all true. A captured actor should report
+`experimental_text_captured`. If any gate differs, stop and return the JSON;
+the tester records that mutation was not attempted.
+
+Glow, wax, color, filtered text, text objects, editor locking, and complete
+control remain expected-unsupported in alpha.3.
+
 ## Suggested run
 
 1. Place the four sign variants in a disposable test area.

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endstone-sign-tester"
-version = "0.2.0a2"
+version = "0.2.0a3"
 description = "In-game exact-build probe and JSON evidence recorder for Endstone Sign API"
 readme = "README.md"
 requires-python = "==3.14.*"

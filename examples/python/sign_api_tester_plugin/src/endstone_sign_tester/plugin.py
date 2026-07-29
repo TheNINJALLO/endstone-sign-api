@@ -29,7 +29,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a2"
+    version = "0.2.0a3"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -160,6 +160,63 @@ class SignApiTesterPlugin(Plugin):
             rendered = rendered[:897] + "..."
         sender.send_message(f"{label}: {rendered}")
 
+    @staticmethod
+    def _discover_native_plugin(
+        working_directory: Path, suffix: str
+    ) -> tuple[Path | None, dict[str, Any]]:
+        pattern = f"endstone_sign_bds_*{suffix}"
+        candidates = sorted(
+            (
+                path
+                for path in (working_directory / "plugins").rglob(pattern)
+                if path.is_file()
+            ),
+            key=lambda path: path.as_posix(),
+        )
+        relative_candidates = [
+            path.relative_to(working_directory).as_posix() for path in candidates
+        ]
+        if not candidates:
+            return None, {
+                "status": "not_found",
+                "pattern": f"plugins/**/{pattern}",
+                "candidates": [],
+            }
+        if len(candidates) > 1:
+            return None, {
+                "status": "ambiguous",
+                "pattern": f"plugins/**/{pattern}",
+                "candidates": relative_candidates,
+            }
+        return candidates[0], {
+            "status": "selected",
+            "pattern": f"plugins/**/{pattern}",
+            "candidates": relative_candidates,
+        }
+
+    @staticmethod
+    def _write_text_preflight(bridge: Any, server: Any) -> tuple[bool, str]:
+        try:
+            status = dict(bridge.status(server))
+        except Exception as error:
+            return (
+                False,
+                "could not verify native Sign API write_text capability; "
+                f"mutation was not attempted: {error}",
+            )
+        try:
+            capabilities = dict(status.get("capabilities") or {})
+        except (TypeError, ValueError):
+            capabilities = {}
+        if capabilities.get("write_text") is not True:
+            adapter = str(status.get("adapter") or "unknown")
+            return (
+                False,
+                "native Sign API write_text capability is disabled for adapter "
+                f"{adapter!r}; mutation was not attempted",
+            )
+        return True, ""
+
     def _save_invocation(
         self,
         report: dict[str, Any],
@@ -227,6 +284,19 @@ class SignApiTesterPlugin(Plugin):
             "waxed": waxed,
             "force": False,
         }
+        write_text_ready, preflight_message = self._write_text_preflight(
+            bridge, self.server
+        )
+        if not write_text_ready:
+            response = {
+                "ok": False,
+                "status": "unsupported",
+                "message": preflight_message,
+                "revision": 0,
+                "mutation_attempted": False,
+            }
+            self._save_invocation(report, "set_text", request, response)
+            return response
         try:
             response = dict(
                 bridge.set_text(
@@ -322,9 +392,27 @@ class SignApiTesterPlugin(Plugin):
                 report["server_executable_sha256"] = file_sha256(candidate)
                 break
         plugin_suffix = ".dll" if sys.platform == "win32" else ".so"
-        plugins = list((Path.cwd() / "plugins").rglob(f"endstone_sign_bds_*{plugin_suffix}"))
-        if len(plugins) == 1 and plugins[0].is_file():
-            report["plugin_sha256"] = file_sha256(plugins[0])
+        plugin, discovery = self._discover_native_plugin(Path.cwd(), plugin_suffix)
+        if plugin is not None:
+            report["plugin_sha256"] = file_sha256(plugin)
+            discovery["sha256"] = report["plugin_sha256"]
+        append_invocation(
+            report,
+            "plugin_discovery",
+            {"pattern": discovery["pattern"]},
+            discovery,
+        )
+        if discovery["status"] == "not_found":
+            sender.send_message(
+                "No native Sign API plugin binary was found; plugin_sha256 remains empty. "
+                f"Expected {discovery['pattern']}."
+            )
+        elif discovery["status"] == "ambiguous":
+            sender.send_message(
+                "Multiple native Sign API plugin binaries were found; plugin_sha256 remains "
+                "empty until exactly one candidate remains: "
+                + ", ".join(discovery["candidates"])
+            )
         save_report(self._path(), report)
         sender.send_message(
             f"Stage report started for {dimension} ({x}, {y}, {z}): {self._path()}"

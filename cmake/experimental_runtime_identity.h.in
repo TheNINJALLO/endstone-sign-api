@@ -1,0 +1,22 @@
+#pragma once
+
+#include <cstdint>
+#include <string_view>
+
+// Internal build identity for the disposable-server experimental bridge.
+// These values identify only the selected manifest; they do not attest that its
+// symbols, ABI, or stage probe have been verified.
+namespace endstone_sign::internal {
+
+inline constexpr std::string_view ExperimentalManifestPlatform =
+    "@ENDSTONE_SIGN_MANIFEST_PLATFORM@";
+inline constexpr std::string_view ExperimentalBdsPackageVersion =
+    "@ENDSTONE_SIGN_MANIFEST_PACKAGE@";
+inline constexpr std::string_view ExperimentalRuntimeBdsVersion =
+    "@ENDSTONE_SIGN_MANIFEST_RUNTIME@";
+inline constexpr std::string_view ExperimentalExecutableSha256 =
+    "@ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SHA256@";
+inline constexpr std::uint64_t ExperimentalExecutableSize =
+    @ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SIZE@ULL;
+
+} // namespace endstone_sign::internal

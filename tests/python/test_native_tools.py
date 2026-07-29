@@ -39,7 +39,11 @@ class NativeToolTests(unittest.TestCase):
 
             strict = self.run_tool("tools/verify_native_manifest.py", manifest)
             self.assertNotEqual(strict.returncode, 0)
-            self.assertIn("executable.sha256", strict.stdout)
+            if platform == "windows-x64":
+                self.assertIn("executable.sha256", strict.stdout)
+            else:
+                self.assertNotIn("executable.sha256", strict.stdout)
+                self.assertIn("abi.reviewed", strict.stdout)
 
             activation = self.run_tool("tools/activate_verified_manifest.py", manifest)
             self.assertNotEqual(activation.returncode, 0)

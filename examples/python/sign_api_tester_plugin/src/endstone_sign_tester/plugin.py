@@ -29,7 +29,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a1"
+    version = "0.2.0a2"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -41,11 +41,23 @@ class SignApiTesterPlugin(Plugin):
                 "/signprobe (status)<action: SignProbeStatusAction>",
                 "/signprobe (begin)<action: SignProbeBeginAction> <x: int> <y: int> <z: int>",
                 "/signprobe (capture)<action: SignProbeCaptureAction>",
-                "/signprobe (text)<action: SignProbeTextAction> <side: SignProbeSide> <lines: message>",
-                "/signprobe (glow)<action: SignProbeGlowAction> <side: SignProbeSide> <enabled: bool>",
+                (
+                    "/signprobe (text)<action: SignProbeTextAction> "
+                    "(front|back)<side: SignProbeTextSide> <lines: message>"
+                ),
+                (
+                    "/signprobe (glow)<action: SignProbeGlowAction> "
+                    "(front|back)<side: SignProbeGlowSide> <enabled: bool>"
+                ),
                 "/signprobe (wax)<action: SignProbeWaxAction> <enabled: bool>",
-                "/signprobe (color)<action: SignProbeColorAction> <side: SignProbeSide> <argb: str>",
-                "/signprobe (editor)<action: SignProbeEditorAction> <side: SignProbeSide>",
+                (
+                    "/signprobe (color)<action: SignProbeColorAction> "
+                    "(front|back)<side: SignProbeColorSide> <argb: str>"
+                ),
+                (
+                    "/signprobe (editor)<action: SignProbeEditorAction> "
+                    "(front|back)<side: SignProbeEditorSide>"
+                ),
                 "/signprobe (remove)<action: SignProbeRemoveAction> (confirm)<confirmation: SignProbeConfirm>",
                 "/signprobe (record)<action: SignProbeRecordAction> <probe: str> <passed: bool> <evidence: message>",
                 "/signprobe (meta)<action: SignProbeMetaAction> <field: str> <value: message>",

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0-alpha.2
+
+- Fixed `/signprobe` registration on Endstone 0.11.6 by declaring explicit,
+  unique `front|back` enum types for every side-taking overload.
+- Added command-schema regression tests for unsupported bare types, duplicate
+  enum names, empty enum values, and misplaced `message` arguments.
+
 ## 0.2.0-alpha.1
 
 - Replaced the narrow text-only prototype with the `endstone:sign:v2` complete lifecycle contract.

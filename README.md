@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.1`  
+**Release:** `v0.2.0-alpha.2`
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
 

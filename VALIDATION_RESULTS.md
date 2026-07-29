@@ -1,6 +1,6 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.1`  
+Release: `0.2.0-alpha.2`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-07-29`
 

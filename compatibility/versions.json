@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.0-alpha.1",
+  "api": "0.2.0-alpha.2",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [

@@ -1,0 +1,59 @@
+name: Build Sign API
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            python: "3.11"
+          - os: ubuntu-24.04
+            python: "3.14"
+          - os: windows-2022
+            python: "3.14"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Verify metadata
+        run: python scripts/verify_project_metadata.py
+      - name: Verify native boundary remains closed
+        run: python tools/verify_fail_closed.py
+      - name: Verify blocked native manifests are structurally valid
+        shell: bash
+        run: |
+          python tools/verify_native_manifest.py native/manifests/linux-x64-1.26.33.1.json --allow-incomplete
+          python tools/verify_native_manifest.py native/manifests/windows-x64-1.26.33.1.json --allow-incomplete
+          if python tools/verify_native_manifest.py native/manifests/linux-x64-1.26.33.1.json; then
+            echo "Incomplete Linux manifest unexpectedly opened the native gate" >&2
+            exit 1
+          fi
+          if python tools/activate_verified_manifest.py native/manifests/linux-x64-1.26.33.1.json; then
+            echo "Activation unexpectedly accepted an incomplete manifest" >&2
+            exit 1
+          fi
+      - name: Install Python package
+        run: python -m pip install -e .
+      - name: Compile Python package
+        run: python -m compileall -q python
+      - name: Run Python tests
+        run: python -m unittest discover -s tests/python -v
+      - name: Build Python wheel
+        run: python -m pip wheel . --no-deps -w dist
+      - name: Configure portable C++ build
+        run: cmake -S . -B build -DENDSTONE_SIGN_BUILD_TESTS=ON -DENDSTONE_SIGN_BUILD_SHARED=ON -DENDSTONE_SIGN_BUILD_PLUGIN=OFF
+      - name: Build portable C++ core
+        run: cmake --build build --config Release --parallel
+      - name: Run C++ tests
+        run: ctest --test-dir build -C Release --output-on-failure

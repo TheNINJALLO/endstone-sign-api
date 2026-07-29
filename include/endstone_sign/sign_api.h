@@ -1,0 +1,16 @@
+#pragma once
+
+#include "endstone_sign/adapter.h"
+#include "endstone_sign/events.h"
+#include "endstone_sign/in_memory_adapter.h"
+#include "endstone_sign/native_binary_identity.h"
+#include "endstone_sign/native_manifest.h"
+#include "endstone_sign/operations.h"
+#include "endstone_sign/patch.h"
+#include "endstone_sign/placement.h"
+#include "endstone_sign/schema.h"
+#include "endstone_sign/service.h"
+#include "endstone_sign/snapshot.h"
+#include "endstone_sign/text.h"
+#include "endstone_sign/types.h"
+#include "endstone_sign/version.h"

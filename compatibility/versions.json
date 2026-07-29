@@ -1,0 +1,29 @@
+{
+  "schema": 2,
+  "project": "endstone-sign-api",
+  "api": "0.2.0-alpha.1",
+  "service": "endstone:sign:v2",
+  "service_abi": 2,
+  "adapters": [
+    {
+      "family": "26.30",
+      "runtime_bds": "26.33",
+      "official_package": "1.26.33.1",
+      "endstone": "0.11.6",
+      "status": "exact-symbol-audit-required",
+      "portable_contract": "complete",
+      "native_service_registration": false,
+      "complete_control": false,
+      "activation_requirements": [
+        "exact executable SHA-256",
+        "all required SignBlockActor symbols on Windows and Linux",
+        "verified function signatures and class ABI",
+        "player edit interception",
+        "client update verification",
+        "restart persistence verification",
+        "disposable-world probe report"
+      ]
+    }
+  ],
+  "policy": "fail-closed; endstone:sign:v2 is registered only when every complete-control capability is true"
+}

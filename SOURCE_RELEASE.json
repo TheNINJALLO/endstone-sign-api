@@ -1,0 +1,24 @@
+{
+  "name": "endstone-sign-api",
+  "version": "0.2.0-alpha.1",
+  "service": "endstone:sign:v2",
+  "service_abi": 2,
+  "adapter_family": "Minecraft Bedrock 26.30",
+  "runtime_bds": [
+    "1.26.33",
+    "26.33"
+  ],
+  "official_bds_packages": [
+    "1.26.33.1"
+  ],
+  "endstone_tags": [
+    "v0.11.6"
+  ],
+  "portable_core": "complete full-lifecycle reference implementation",
+  "native_sign_backend": "fail-closed until exact binary identity, symbols, ABI review, player-edit hook, and disposable-world probe pass",
+  "platforms": [
+    "linux-x64",
+    "windows-x64"
+  ],
+  "python": "pure Python reference package supports 3.11+"
+}

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0-alpha.3
+
+- Added a Linux x64 disposable-world plain-text bridge for the exact BDS
+  `1.26.33.1` executable. It requires the exact executable SHA-256, exact full
+  function hashes, the exact Sign/HangingSign vtable, and the libc++ string ABI
+  before it exposes front/back text capabilities.
+- Added readback, owner-preservation, and rollback verification around every
+  experimental text write. The first probe candidate is deliberately limited
+  to 22-byte libc++ small strings and refuses existing text objects.
+- Kept the complete native manifest, advanced sign fields, player-edit hook,
+  and complete-control capability fail-closed pending disposable-world proof.
+- Added explicit native-plugin discovery diagnostics and capability preflight
+  so blocked tester commands record that no mutation was attempted.
+- Recorded both exact Linux and Windows server executable identities without
+  redistributing either server binary.
+
 ## 0.2.0-alpha.2
 
 - Fixed `/signprobe` registration on Endstone 0.11.6 by declaring explicit,

@@ -6,17 +6,34 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace endstone_sign {
 
 enum class SignActorStatus {
     Captured,
+    ExperimentalTextCaptured,
     ChunkUnavailable,
     NoBlockActor,
     WrongBlockActorType,
     SymbolGateClosed,
     AdapterError,
 };
+
+[[nodiscard]] constexpr std::string_view
+signActorStatusName(SignActorStatus status) noexcept {
+    switch (status) {
+    case SignActorStatus::Captured: return "captured";
+    case SignActorStatus::ExperimentalTextCaptured:
+        return "experimental_text_captured";
+    case SignActorStatus::ChunkUnavailable: return "chunk_unavailable";
+    case SignActorStatus::NoBlockActor: return "no_block_actor";
+    case SignActorStatus::WrongBlockActorType: return "wrong_block_actor_type";
+    case SignActorStatus::SymbolGateClosed: return "symbol_gate_closed";
+    case SignActorStatus::AdapterError: return "adapter_error";
+    }
+    return "adapter_error";
+}
 
 struct SignSnapshot {
     SignLocation location;

@@ -23,7 +23,7 @@ EXPECTED_ENTRY = "sign-tester"
 EXPECTED_TARGET = "endstone_sign_tester:SignApiTesterPlugin"
 EXPECTED_COMMANDS = {"signprobe"}
 EXPECTED_DEPENDENCIES = ["sign_api"]
-EXPECTED_VERSION = "0.2.0a2"
+EXPECTED_VERSION = "0.2.0a3"
 EXPECTED_BRIDGE = "_endstone_sign_live"
 EXPECTED_RUNTIME_DEPENDENCIES = ["endstone==0.11.6"]
 EXPECTED_API_MODULES = {

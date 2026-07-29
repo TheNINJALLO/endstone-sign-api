@@ -1,14 +1,18 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.2`
+Release: `0.2.0-alpha.3`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-07-29`
 
 ## Result
 
-The portable C++20 and Python API layers passed all available local validation. The exact native BDS bridge remains deliberately disabled because its executable identities, symbol RVAs, ABI proof, reviewed bridge source, and disposable-world probe have not yet been supplied.
+The portable C++20 and Python API layers pass local validation. The alpha.3
+source contains an exact-gated Linux plain-text probe candidate; the complete
+native bridge remains disabled because the remaining symbol/ABI proof,
+player-edit hook, reviewed bridge, and disposable-world probes are incomplete.
 
-No native `.dll` or `.so` is claimed or packaged by this release.
+Release packages contain disposable-world `.dll`/`.so` candidates and tester
+wheels. They are experimental artifacts, not verified production plugins.
 
 ## Delivered contract
 
@@ -34,7 +38,7 @@ No native `.dll` or `.so` is claimed or packaged by this release.
 | `-Wall -Wextra -Wpedantic -Werror` | Passed |
 | AddressSanitizer | Passed |
 | UndefinedBehaviorSanitizer | Passed |
-| CTest | `1/1` passed |
+| CTest | `3/3` passed |
 | C++ example compile/run | Passed |
 | CMake install layout | Passed |
 | Windows portable shared library (`endstone_sign_api.dll`) | Passed |
@@ -45,7 +49,7 @@ No native `.dll` or `.so` is claimed or packaged by this release.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `18/18` passed |
+| Unit tests | `32/32` passed |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -69,6 +73,11 @@ No native `.dll` or `.so` is claimed or packaged by this release.
 |---|---|
 | Official Windows archive hash pinned | Passed |
 | Official Linux archive hash pinned | Passed |
+| Exact Windows executable SHA-256/size pinned | Passed |
+| Exact Linux executable SHA-256/size pinned | Passed |
+| Linux text function full hashes independently reproduced | Passed |
+| Linux Sign/HangingSign vtable and side layout independently reproduced | Passed |
+| libc++ SSO, text-object, filtered-text, owner, readback, and rollback gates | Passed by source review; live probe pending |
 | Incomplete Linux manifest reports gate closed | Passed |
 | Incomplete Windows manifest reports gate closed | Passed |
 | Strict manifest verification rejects incomplete proof | Passed |
@@ -82,12 +91,15 @@ No native `.dll` or `.so` is claimed or packaged by this release.
 
 The following are intentionally unresolved and are required before a working live plugin may be built:
 
-1. Hash the exact `bedrock_server` or `bedrock_server.exe` extracted from the verified official `1.26.33.1` ZIP.
-2. Locate and behavior-confirm all 19 required sign/native update symbols independently on Windows and Linux.
-3. Review ABI signatures and calling contracts.
+1. Run the alpha.3 front/back short-text probe against the exact Linux server.
+2. Locate and behavior-confirm the remaining required symbols independently on
+   Windows and Linux.
+3. Complete review of every ABI signature and calling contract.
 4. Implement and review `src/verified_bds_26_30_adapter.cpp`.
 5. Install and validate the cancellable player-edit hook.
-6. Pass all 31 disposable-world probes, including client refresh, reconnect, restart persistence, and rollback.
-7. Generate the activated platform manifest and compile the exact plugin against Endstone `0.11.6`.
+6. Pass all 31 disposable-world probes, including client refresh, reconnect,
+   restart persistence, and rollback.
+7. Generate the activated platform manifest and compile the verified plugin
+   against Endstone `0.11.6`.
 
 Until those steps pass, the plugin refuses to register `endstone:sign:v2`.

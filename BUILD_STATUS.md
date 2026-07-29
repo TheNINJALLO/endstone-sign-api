@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.2**
+Version: **0.2.0-alpha.3**
 
 ## Portable core
 
@@ -22,10 +22,16 @@ Version: **0.2.0-alpha.2**
 - Endstone: `0.11.6`.
 - Windows archive identity: pinned.
 - Linux archive identity: pinned.
-- Executable identities: intentionally empty pending local package inspection.
-- Required symbols: manifest skeleton present, unresolved.
+- Linux executable identity: pinned and matched by the off-site report.
+- Windows executable identity: pinned from the exact official archive.
+- Linux plain-text candidates: independently mapped and protected by exact
+  executable, full-function, vtable, representation, readback, and rollback gates.
+- Windows sign text symbols: unresolved; its probe candidate is structural-only.
 - Verified bridge source: absent.
 - Stage probe: not passed.
-- Live service registration: disabled by design.
+- Experimental service registration: enabled with partial capabilities in the
+  disposable-server candidate.
+- Verified complete-control registration: disabled by design.
 
-This release is safe to use as an API/reference package, not as a working native sign plugin.
+Use the native candidate only in a backed-up disposable world. It is intended
+to collect the live evidence required for the next boundary, not for production.

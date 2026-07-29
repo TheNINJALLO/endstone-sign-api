@@ -135,10 +135,20 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" endstone_version)
         string(JSON ENDSTONE_SIGN_MANIFEST_STATUS GET
             "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" status)
+        string(JSON ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SHA256 GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" executable sha256)
+        string(JSON ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SIZE GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" executable size)
         if(WIN32)
             set(ENDSTONE_SIGN_EXPECTED_PLATFORM "windows-x64")
+            set(ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SHA256
+                "4a0b867eee6c24310f405410b17e9794441b81ed8f2976cdd4cef54d0c441829")
+            set(ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SIZE "207171408")
         elseif(UNIX AND NOT APPLE)
             set(ENDSTONE_SIGN_EXPECTED_PLATFORM "linux-x64")
+            set(ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SHA256
+                "61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375")
+            set(ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SIZE "232842872")
         else()
             message(FATAL_ERROR "The exact Sign plugin supports only Windows x64 and Linux x64")
         endif()
@@ -149,10 +159,27 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             message(FATAL_ERROR
                 "Native manifest identity does not match ${ENDSTONE_SIGN_EXPECTED_PLATFORM}, BDS ${ENDSTONE_BDS_PACKAGE}/26.33, Endstone 0.11.6")
         endif()
+        if(NOT ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SHA256 STREQUAL
+               ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SHA256 OR
+           NOT ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SIZE STREQUAL
+               ENDSTONE_SIGN_EXPECTED_EXECUTABLE_SIZE)
+            message(FATAL_ERROR
+                "Native manifest executable identity does not match the exact ${ENDSTONE_SIGN_EXPECTED_PLATFORM} BDS ${ENDSTONE_BDS_PACKAGE} binary")
+        endif()
         if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE AND
            NOT ENDSTONE_SIGN_MANIFEST_STATUS STREQUAL "verified")
             message(FATAL_ERROR
                 "A verified release bridge requires a manifest with status=verified")
+        endif()
+        if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+            set(ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR
+                "${CMAKE_CURRENT_BINARY_DIR}/generated/endstone_sign/internal")
+            file(MAKE_DIRECTORY "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}")
+            configure_file(
+                "${CMAKE_CURRENT_SOURCE_DIR}/cmake/experimental_runtime_identity.h.in"
+                "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}/experimental_runtime_identity.h"
+                @ONLY
+            )
         endif()
     endif()
 
@@ -287,6 +314,12 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ${endstone_BINARY_DIR}/include
         ${endstone_BINARY_DIR}/include/generated
     )
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+        target_sources(sign_api PRIVATE
+            "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}/experimental_runtime_identity.h")
+        target_include_directories(sign_api PRIVATE
+            "${CMAKE_CURRENT_BINARY_DIR}/generated")
+    endif()
     target_compile_definitions(sign_api PRIVATE
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
         ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>

@@ -1,6 +1,6 @@
 {
   "name": "endstone-sign-api",
-  "version": "0.2.0-alpha.2",
+  "version": "0.2.0-alpha.3",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapter_family": "Minecraft Bedrock 26.30",
@@ -15,7 +15,7 @@
     "v0.11.6"
   ],
   "portable_core": "complete full-lifecycle reference implementation",
-  "native_sign_backend": "fail-closed until exact binary identity, symbols, ABI review, player-edit hook, and disposable-world probe pass",
+  "native_sign_backend": "partial exact-gated Linux plain-text probe; verified complete-control bridge remains fail-closed",
   "platforms": [
     "linux-x64",
     "windows-x64"

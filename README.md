@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.2`
+**Release:** `v0.2.0-alpha.3`
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
 
@@ -8,9 +8,13 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. The exact native `SignBlockActor` bridge is intentionally closed in this source release.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.3 also ships a deliberately narrow native probe adapter for a backed-up disposable server.
 
-The plugin does **not** register `endstone:sign:v2` unless all of these are simultaneously true:
+On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
+
+This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. The Windows candidate remains structural-only while its independent text symbols are unresolved.
+
+The probe registers a **partial experimental** `endstone:sign:v2` service; `complete_control` remains false. A verified complete-control bridge remains closed until all of these are simultaneously true:
 
 1. The runtime is BDS `26.33` with Endstone `0.11.6`.
 2. The running executable SHA-256 matches a reviewed platform manifest for official package `1.26.33.1`.
@@ -19,7 +23,7 @@ The plugin does **not** register `endstone:sign:v2` unless all of these are simu
 5. A reviewed native bridge source matches its recorded SHA-256.
 6. Every disposable-world stage probe passes, including client refresh, reconnect, restart persistence, and rollback.
 
-Until then, the native plugin logs the missing requirements and refuses service registration. There are no guessed offsets, borrowed symbols, silent no-ops, or partial capabilities.
+Until then, advanced operations report `unsupported` and the verified generated manifest stays closed. The tester checks each mutation capability first and records `mutation_attempted: false` when a gate is closed.
 
 ## Complete control contract
 

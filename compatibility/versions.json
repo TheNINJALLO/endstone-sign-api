@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.0-alpha.2",
+  "api": "0.2.0-alpha.3",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -10,9 +10,10 @@
       "runtime_bds": "26.33",
       "official_package": "1.26.33.1",
       "endstone": "0.11.6",
-      "status": "exact-symbol-audit-required",
+      "status": "experimental-linux-plain-text-probe",
       "portable_contract": "complete",
-      "native_service_registration": false,
+      "native_service_registration": true,
+      "verified_native_service_registration": false,
       "complete_control": false,
       "activation_requirements": [
         "exact executable SHA-256",
@@ -25,5 +26,5 @@
       ]
     }
   ],
-  "policy": "fail-closed; endstone:sign:v2 is registered only when every complete-control capability is true"
+  "policy": "partial experimental capabilities are individually exact-gated; verified complete control remains fail-closed"
 }

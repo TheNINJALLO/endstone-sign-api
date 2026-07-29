@@ -32,11 +32,12 @@ readme = text("README.md")
 workflow = text(".github/workflows/ci.yml")
 release_workflow = text(".github/workflows/release.yml")
 generated = text("include/endstone_sign/generated/native_manifest_data.h")
+experimental_identity = text("cmake/experimental_runtime_identity.h.in")
 version_header = text("include/endstone_sign/version.h")
 
 release = source.get("version")
 expect(source.get("name") == "endstone-sign-api", "SOURCE_RELEASE name")
-expect(release == "0.2.0-alpha.2", "SOURCE_RELEASE version")
+expect(release == "0.2.0-alpha.3", "SOURCE_RELEASE version")
 expect(source.get("service") == "endstone:sign:v2", "SOURCE_RELEASE service")
 expect(source.get("service_abi") == 2, "SOURCE_RELEASE service ABI")
 expect(source.get("official_bds_packages") == ["1.26.33.1"], "exact official BDS package")
@@ -48,19 +49,19 @@ expect(bool(match) and match.group(1) == "0.2.0", "CMake project version")
 expect('set(ENDSTONE_BDS_BUILD "1.26.33"' in cmake, "CMake BDS runtime target")
 expect('set(ENDSTONE_BDS_PACKAGE "1.26.33.1"' in cmake, "CMake BDS package target")
 expect('GIT_TAG v0.11.6' in cmake, "CMake Endstone tag")
-expect('version = "0.2.0a2"' in pyproject, "Python project version")
-expect('__version__ = "0.2.0a2"' in init, "Python package version")
-expect('version = "0.2.0a2"' in tester_pyproject, "tester wheel version")
-expect('version = "0.2.0a2"' in tester_plugin, "tester plugin version")
-expect('module.attr("__version__") = "0.2.0a2"' in live_bindings,
+expect('version = "0.2.0a3"' in pyproject, "Python project version")
+expect('__version__ = "0.2.0a3"' in init, "Python package version")
+expect('version = "0.2.0a3"' in tester_pyproject, "tester wheel version")
+expect('version = "0.2.0a3"' in tester_plugin, "tester plugin version")
+expect('module.attr("__version__") = "0.2.0a3"' in live_bindings,
        "live bridge version")
 expect('__service_name__ = "endstone:sign:v2"' in init, "Python service name")
 expect('__service_abi__ = 2' in init, "Python service ABI")
-expect('ReleaseVersion = "0.2.0-alpha.2"' in version_header, "C++ release version")
+expect('ReleaseVersion = "0.2.0-alpha.3"' in version_header, "C++ release version")
 expect('ServiceName = "endstone:sign:v2"' in version_header, "C++ service name")
 expect('ServiceAbiVersion = 2' in version_header, "C++ service ABI")
-expect("v0.2.0-alpha.2" in readme, "README release tag")
-expect("does **not** register" in readme, "README native registration warning")
+expect("v0.2.0-alpha.3" in readme, "README release tag")
+expect("partial experimental" in readme, "README partial native registration warning")
 
 expect(compat.get("project") == "endstone-sign-api", "compatibility project")
 expect(compat.get("api") == release, "compatibility release")
@@ -73,7 +74,10 @@ if adapters:
     expect(adapter.get("runtime_bds") == "26.33", "compatibility runtime")
     expect(adapter.get("official_package") == "1.26.33.1", "compatibility package")
     expect(adapter.get("endstone") == "0.11.6", "compatibility Endstone")
-    expect(adapter.get("native_service_registration") is False, "native service registration closed")
+    expect(adapter.get("native_service_registration") is True,
+           "experimental native service registration")
+    expect(adapter.get("verified_native_service_registration") is False,
+           "verified native service registration closed")
     expect(adapter.get("complete_control") is False, "native complete control closed")
 
 for required in (
@@ -84,6 +88,24 @@ for required in (
     'DisposableWorldProbePassed = false',
 ):
     expect(required in generated, f"generated native gate: {required}")
+for required, placeholder in (
+    ("ExperimentalManifestPlatform", "@ENDSTONE_SIGN_MANIFEST_PLATFORM@"),
+    ("ExperimentalBdsPackageVersion", "@ENDSTONE_SIGN_MANIFEST_PACKAGE@"),
+    ("ExperimentalRuntimeBdsVersion", "@ENDSTONE_SIGN_MANIFEST_RUNTIME@"),
+    ("ExperimentalExecutableSha256",
+     "@ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SHA256@"),
+    ("ExperimentalExecutableSize", "@ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SIZE@"),
+):
+    expect(required in experimental_identity and placeholder in experimental_identity,
+           f"experimental runtime identity: {required}")
+expect("cmake/experimental_runtime_identity.h.in" in cmake,
+       "CMake configures experimental runtime identity")
+expect("ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SHA256 GET" in cmake,
+       "CMake reads experimental executable hash from manifest")
+expect("ENDSTONE_SIGN_MANIFEST_EXECUTABLE_SIZE GET" in cmake,
+       "CMake reads experimental executable size from manifest")
+expect("${CMAKE_CURRENT_BINARY_DIR}/generated" in cmake,
+       "sign_api includes generated internal headers")
 expect(not (ROOT / "src/verified_bds_26_30_adapter.cpp").exists(), "verified bridge must be absent")
 
 expected_hashes = {
@@ -95,7 +117,10 @@ expected_executables = {
         "61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375",
         232842872,
     ),
-    "windows-x64": ("", 0),
+    "windows-x64": (
+        "4a0b867eee6c24310f405410b17e9794441b81ed8f2976cdd4cef54d0c441829",
+        207171408,
+    ),
 }
 for platform, expected_hash in expected_hashes.items():
     manifest_path = ROOT / f"native/manifests/{platform}-1.26.33.1.json"
@@ -122,8 +147,8 @@ for required in (
 ):
     expect(required in workflow, f"workflow contains {required}")
 expect("symbol-gate-pending" not in workflow, "workflow has no stale prototype gate")
-expect("RELEASE_VERSION: 0.2.0-alpha.2" in workflow, "CI release version")
-expect("RELEASE_VERSION: 0.2.0-alpha.2" in release_workflow,
+expect("RELEASE_VERSION: 0.2.0-alpha.3" in workflow, "CI release version")
+expect("RELEASE_VERSION: 0.2.0-alpha.3" in release_workflow,
        "tag workflow release version")
 
 if failures:

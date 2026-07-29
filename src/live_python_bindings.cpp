@@ -67,6 +67,12 @@ py::dict snapshotToDict(const SignSnapshot &snapshot) {
     out["locked_for_editing_xuid"] = snapshot.locked_for_editing_xuid
                                              ? py::cast(*snapshot.locked_for_editing_xuid)
                                              : py::none();
+    out["remote_profanity_filter_enabled"] =
+        snapshot.remote_profanity_filter_enabled;
+    out["local_profanity_filter_enabled"] =
+        snapshot.local_profanity_filter_enabled;
+    out["movable"] = snapshot.movable;
+    out["actor_status"] = std::string(signActorStatusName(snapshot.actor_status));
     out["canonical_snbt"] = snapshot.canonical_snbt;
     out["revision"] = snapshot.revision;
     return out;
@@ -200,7 +206,7 @@ py::dict openEditor(endstone::Server &server, endstone::Player &player,
 
 PYBIND11_MODULE(_endstone_sign_live, module) {
     module.doc() = "Experimental live bridge to endstone:sign:v2";
-    module.attr("__version__") = "0.2.0a2";
+    module.attr("__version__") = "0.2.0a3";
     module.def("available", &endstone_sign::available, py::arg("server"));
     module.def("status", &endstone_sign::status, py::arg("server"));
     module.def("capture", &endstone_sign::capture, py::arg("server"),

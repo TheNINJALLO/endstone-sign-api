@@ -29,7 +29,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a3"
+    version = "0.2.0a4"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -162,37 +162,62 @@ class SignApiTesterPlugin(Plugin):
 
     @staticmethod
     def _discover_native_plugin(
-        working_directory: Path, suffix: str
+        working_directory: Path,
+        suffix: str,
+        executable: Path | None = None,
     ) -> tuple[Path | None, dict[str, Any]]:
-        pattern = f"endstone_sign_bds_*{suffix}"
-        candidates = sorted(
+        platform = "windows-x64" if suffix == ".dll" else "linux-x64"
+        patterns = (
+            f"endstone_sign_bds_1_26_33{suffix}",
             (
-                path
-                for path in (working_directory / "plugins").rglob(pattern)
-                if path.is_file()
+                "endstone-sign-api-v0.2.0-alpha.3-bds-1.26.33-"
+                f"{platform}{suffix}"
             ),
-            key=lambda path: path.as_posix(),
         )
-        relative_candidates = [
-            path.relative_to(working_directory).as_posix() for path in candidates
-        ]
-        if not candidates:
-            return None, {
-                "status": "not_found",
-                "pattern": f"plugins/**/{pattern}",
-                "candidates": [],
-            }
-        if len(candidates) > 1:
-            return None, {
-                "status": "ambiguous",
-                "pattern": f"plugins/**/{pattern}",
-                "candidates": relative_candidates,
-            }
-        return candidates[0], {
-            "status": "selected",
-            "pattern": f"plugins/**/{pattern}",
+
+        def normalized(path: Path) -> Path:
+            try:
+                return path.resolve(strict=False)
+            except OSError:
+                return path.absolute()
+
+        working_directory = normalized(working_directory)
+        roots = [working_directory / "plugins"]
+        if executable is not None:
+            roots.append(normalized(executable).parent / "plugins")
+
+        unique_roots: dict[Path, Path] = {}
+        for root in roots:
+            unique_roots.setdefault(normalized(root), root)
+
+        unique_candidates: dict[Path, Path] = {}
+        for root in unique_roots.values():
+            for pattern in patterns:
+                for path in root.rglob(pattern):
+                    if path.is_file():
+                        unique_candidates.setdefault(normalized(path), path)
+        candidates = sorted(
+            unique_candidates.values(), key=lambda path: path.as_posix()
+        )
+
+        def display(path: Path) -> str:
+            try:
+                return normalized(path).relative_to(working_directory).as_posix()
+            except ValueError:
+                return normalized(path).as_posix()
+
+        relative_candidates = [display(path) for path in candidates]
+        discovery = {
+            "pattern": " or ".join(f"plugins/**/{pattern}" for pattern in patterns),
+            "patterns": [f"plugins/**/{pattern}" for pattern in patterns],
+            "roots": [display(root) for root in unique_roots.values()],
             "candidates": relative_candidates,
         }
+        if not candidates:
+            return None, {"status": "not_found", **discovery}
+        if len(candidates) > 1:
+            return None, {"status": "ambiguous", **discovery}
+        return candidates[0], {"status": "selected", **discovery}
 
     @staticmethod
     def _write_text_preflight(bridge: Any, server: Any) -> tuple[bool, str]:
@@ -384,15 +409,25 @@ class SignApiTesterPlugin(Plugin):
             z=z,
         )
         server_candidates = [
-            Path.cwd() / ("bedrock_server.exe" if sys.platform == "win32" else "bedrock_server"),
+            Path.cwd()
+            / ("bedrock_server.exe" if sys.platform == "win32" else "bedrock_server"),
             Path(sys.executable),
         ]
+        if sys.platform != "win32":
+            try:
+                server_candidates.append(Path("/proc/self/exe").resolve(strict=True))
+            except OSError:
+                pass
+        server_executable: Path | None = None
         for candidate in server_candidates:
             if candidate.is_file() and candidate.name.startswith("bedrock_server"):
                 report["server_executable_sha256"] = file_sha256(candidate)
+                server_executable = candidate
                 break
         plugin_suffix = ".dll" if sys.platform == "win32" else ".so"
-        plugin, discovery = self._discover_native_plugin(Path.cwd(), plugin_suffix)
+        plugin, discovery = self._discover_native_plugin(
+            Path.cwd(), plugin_suffix, server_executable or Path(sys.executable)
+        )
         if plugin is not None:
             report["plugin_sha256"] = file_sha256(plugin)
             discovery["sha256"] = report["plugin_sha256"]

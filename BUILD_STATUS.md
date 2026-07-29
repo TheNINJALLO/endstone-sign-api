@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.3**
+Version: **0.2.0-alpha.4**
 
 ## Portable core
 
@@ -31,6 +31,9 @@ Version: **0.2.0-alpha.3**
 - Stage probe: not passed.
 - Experimental service registration: enabled with partial capabilities in the
   disposable-server candidate.
+- Standalone native assets: published under the canonical install-ready
+  `endstone_sign_bds_1_26_33` filename; tester discovery also recognizes the
+  legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
 Use the native candidate only in a backed-up disposable world. It is intended

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0-alpha.4
+
+- Fixed native-plugin discovery when the standalone alpha.3 `.so`/`.dll` was
+  installed under its long GitHub release filename.
+- Added backward-compatible discovery for canonical and legacy release names,
+  with deduplicated searches under both the launch working directory and the
+  server executable directory.
+- Changed standalone native release assets to the canonical install-ready
+  `endstone_sign_bds_1_26_33.so` and `.dll` names while retaining versioned ZIP
+  and checksum names.
+- Added regression coverage for legacy names, unrelated native plugins,
+  ambiguity, and control-panel working-directory differences.
+
 ## 0.2.0-alpha.3
 
 - Added a Linux x64 disposable-world plain-text bridge for the exact BDS

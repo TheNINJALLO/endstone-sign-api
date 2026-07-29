@@ -8,7 +8,13 @@ Install the native plugin and the matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands can edit or
 remove the sign at the explicit coordinates selected with `/signprobe begin`.
 
-## Alpha.3 Linux short-text probe
+## Alpha.4 Linux short-text probe
+
+The standalone native download is already named
+`endstone_sign_bds_1_26_33.so`; place it and the matching alpha.4 tester wheel
+directly in the server's `plugins/` directory. The tester also recognizes the
+long standalone filename published in alpha.3 and searches beside the actual
+server executable when a hosting panel uses a different working directory.
 
 Start with a normal, unwaxed sign that has no filtered text or text object. The
 first probe deliberately accepts only messages and owner XUIDs of at most 22
@@ -33,7 +39,7 @@ Before either text command, `status` must show adapter
 the tester records that mutation was not attempted.
 
 Glow, wax, color, filtered text, text objects, editor locking, and complete
-control remain expected-unsupported in alpha.3.
+control remain expected-unsupported in alpha.4.
 
 ## Suggested run
 

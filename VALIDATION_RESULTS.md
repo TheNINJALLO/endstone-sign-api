@@ -1,15 +1,19 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.3`
+Release: `0.2.0-alpha.4`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-07-29`
 
 ## Result
 
-The portable C++20 and Python API layers pass local validation. The alpha.3
+The portable C++20 and Python API layers pass local validation. The alpha.4
 source contains an exact-gated Linux plain-text probe candidate; the complete
 native bridge remains disabled because the remaining symbol/ABI proof,
 player-edit hook, reviewed bridge, and disposable-world probes are incomplete.
+
+Alpha.4 corrects the live-test packaging mismatch: standalone native downloads
+use their canonical install-ready plugin names, and the tester recognizes both
+canonical and legacy alpha.3 names from either the launch or executable root.
 
 Release packages contain disposable-world `.dll`/`.so` candidates and tester
 wheels. They are experimental artifacts, not verified production plugins.
@@ -49,7 +53,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `32/32` passed |
+| Unit tests | `34/34` passed |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -89,9 +93,10 @@ wheels. They are experimental artifacts, not verified production plugins.
 
 ## Exact native work still required
 
-The following are intentionally unresolved and are required before a working live plugin may be built:
+The following are intentionally unresolved and are required before a verified
+complete-control live plugin may be built:
 
-1. Run the alpha.3 front/back short-text probe against the exact Linux server.
+1. Run the alpha.4 front/back short-text probe against the exact Linux server.
 2. Locate and behavior-confirm the remaining required symbols independently on
    Windows and Linux.
 3. Complete review of every ABI signature and calling contract.
@@ -102,4 +107,6 @@ The following are intentionally unresolved and are required before a working liv
 7. Generate the activated platform manifest and compile the verified plugin
    against Endstone `0.11.6`.
 
-Until those steps pass, the plugin refuses to register `endstone:sign:v2`.
+Until those steps pass, verified complete-control registration remains closed;
+the exact-gated Linux probe registers only its explicitly reported partial
+capabilities.

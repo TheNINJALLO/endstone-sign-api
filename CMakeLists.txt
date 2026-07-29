@@ -8,12 +8,20 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(ENDSTONE_SIGN_BUILD_TESTS "Build portable tests" ON)
 option(ENDSTONE_SIGN_BUILD_SHARED "Build the portable shared API library" ON)
 option(ENDSTONE_SIGN_BUILD_PLUGIN "Build the Endstone plugin wrapper" OFF)
+option(ENDSTONE_SIGN_BUILD_LIVE_PYTHON
+       "Build the CPython bridge bundled with the exact server-test wheel" ON)
 option(ENDSTONE_SIGN_BUILD_NATIVE_2630 "Build the guarded BDS 26.30 boundary" ON)
+option(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
+       "Build the unverified native bridge candidate for disposable-server probing" OFF)
 option(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
        "Compile the generated, stage-verified SignBlockActor bridge" OFF)
 option(ENDSTONE_SIGN_WARNINGS_AS_ERRORS "Treat project warnings as errors" ON)
 set(ENDSTONE_BDS_BUILD "1.26.33" CACHE STRING "Exact Endstone runtime BDS build")
 set(ENDSTONE_BDS_PACKAGE "1.26.33.1" CACHE STRING "Exact official BDS package version")
+set(ENDSTONE_SIGN_NATIVE_MANIFEST "" CACHE FILEPATH
+    "Platform manifest used to build an experimental or verified native bridge")
+set_property(CACHE ENDSTONE_BDS_BUILD PROPERTY STRINGS "1.26.33")
+string(REPLACE "." "_" ENDSTONE_BDS_BUILD_FILE "${ENDSTONE_BDS_BUILD}")
 
 set(ENDSTONE_SIGN_RELEASE_VERSION "${PROJECT_VERSION}")
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/SOURCE_RELEASE.json")
@@ -76,6 +84,18 @@ if(ENDSTONE_SIGN_BUILD_SHARED)
     endif()
 endif()
 
+if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
+   ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
+    message(FATAL_ERROR
+        "The experimental probe bridge and verified release bridge are mutually exclusive")
+endif()
+
+if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
+   NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/experimental_bds_26_30_adapter.cpp")
+    message(FATAL_ERROR
+        "Experimental bridge requested, but src/experimental_bds_26_30_adapter.cpp is absent")
+endif()
+
 if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE AND
    NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/verified_bds_26_30_adapter.cpp")
     message(FATAL_ERROR
@@ -86,17 +106,62 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     if(NOT ENDSTONE_BDS_BUILD STREQUAL "1.26.33" OR
        NOT ENDSTONE_BDS_PACKAGE STREQUAL "1.26.33.1")
         message(FATAL_ERROR
-            "This adapter package supports only BDS package 1.26.33.1 (runtime 26.33) with Endstone v0.11.6")
+            "This package supports only BDS 1.26.33.1 (runtime 26.33) with Endstone v0.11.6")
     endif()
     if(NOT DEFINED ENDSTONE_CONAN_BDS_BUILD)
         message(FATAL_ERROR
-            "ENDSTONE_CONAN_BDS_BUILD is missing; configure through this project's Conan toolchain")
+            "ENDSTONE_CONAN_BDS_BUILD is missing; configure the exact plugin through this project's Conan toolchain")
     endif()
     if(NOT ENDSTONE_CONAN_BDS_BUILD STREQUAL ENDSTONE_BDS_BUILD)
         message(FATAL_ERROR
             "Conan dependencies target BDS ${ENDSTONE_CONAN_BDS_BUILD}, but CMake targets ${ENDSTONE_BDS_BUILD}")
     endif()
 
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+       ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
+        if(ENDSTONE_SIGN_NATIVE_MANIFEST STREQUAL "" OR
+           NOT EXISTS "${ENDSTONE_SIGN_NATIVE_MANIFEST}")
+            message(FATAL_ERROR
+                "An exact platform manifest is required for the native bridge candidate")
+        endif()
+        file(READ "${ENDSTONE_SIGN_NATIVE_MANIFEST}" ENDSTONE_SIGN_NATIVE_MANIFEST_JSON)
+        string(JSON ENDSTONE_SIGN_MANIFEST_PLATFORM GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" platform)
+        string(JSON ENDSTONE_SIGN_MANIFEST_PACKAGE GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" bds_package_version)
+        string(JSON ENDSTONE_SIGN_MANIFEST_RUNTIME GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" runtime_bds)
+        string(JSON ENDSTONE_SIGN_MANIFEST_ENDSTONE GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" endstone_version)
+        string(JSON ENDSTONE_SIGN_MANIFEST_STATUS GET
+            "${ENDSTONE_SIGN_NATIVE_MANIFEST_JSON}" status)
+        if(WIN32)
+            set(ENDSTONE_SIGN_EXPECTED_PLATFORM "windows-x64")
+        elseif(UNIX AND NOT APPLE)
+            set(ENDSTONE_SIGN_EXPECTED_PLATFORM "linux-x64")
+        else()
+            message(FATAL_ERROR "The exact Sign plugin supports only Windows x64 and Linux x64")
+        endif()
+        if(NOT ENDSTONE_SIGN_MANIFEST_PLATFORM STREQUAL ENDSTONE_SIGN_EXPECTED_PLATFORM OR
+           NOT ENDSTONE_SIGN_MANIFEST_PACKAGE STREQUAL ENDSTONE_BDS_PACKAGE OR
+           NOT ENDSTONE_SIGN_MANIFEST_RUNTIME STREQUAL "26.33" OR
+           NOT ENDSTONE_SIGN_MANIFEST_ENDSTONE STREQUAL "0.11.6")
+            message(FATAL_ERROR
+                "Native manifest identity does not match ${ENDSTONE_SIGN_EXPECTED_PLATFORM}, BDS ${ENDSTONE_BDS_PACKAGE}/26.33, Endstone 0.11.6")
+        endif()
+        if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE AND
+           NOT ENDSTONE_SIGN_MANIFEST_STATUS STREQUAL "verified")
+            message(FATAL_ERROR
+                "A verified release bridge requires a manifest with status=verified")
+        endif()
+    endif()
+
+    set(ENDSTONE_EXACT_TAG "v0.11.6")
+    string(REGEX REPLACE "^v" "" ENDSTONE_EXACT_VERSION "${ENDSTONE_EXACT_TAG}")
+
+    # Endstone's private Bedrock headers must use the complete dependency graph
+    # pinned by conanfile.py. These packages are deliberately unavailable to a
+    # normal portable build.
     find_package(base64 REQUIRED)
     find_package(Boost REQUIRED)
     find_package(concurrentqueue REQUIRED)
@@ -115,6 +180,10 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     find_package(spdlog REQUIRED)
     find_package(tomlplusplus REQUIRED)
     find_package(zstr REQUIRED)
+    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
+        set(PYBIND11_FINDPYTHON ON)
+        find_package(pybind11 CONFIG REQUIRED)
+    endif()
 
     include(FetchContent)
     FetchContent_Declare(endstone
@@ -123,9 +192,79 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     )
     FetchContent_MakeAvailable(endstone)
 
-    set(SIGN_PLUGIN_SOURCES src/plugin.cpp)
+    # Apply narrow compatibility rewrites to the fetched private source tree.
+    # None of these changes modifies the Endstone runtime installed on a server.
+    if(EXISTS "${endstone_SOURCE_DIR}/include/endstone/identifier.h")
+        file(READ "${endstone_SOURCE_DIR}/include/endstone/identifier.h"
+            ENDSTONE_IDENTIFIER_H_CONTENT)
+        string(REPLACE "-> format_context::iterator"
+            "-> typename FormatContext::iterator"
+            ENDSTONE_IDENTIFIER_H_CONTENT "${ENDSTONE_IDENTIFIER_H_CONTENT}")
+        file(WRITE "${endstone_SOURCE_DIR}/include/endstone/identifier.h"
+            "${ENDSTONE_IDENTIFIER_H_CONTENT}")
+    endif()
+
+    if(EXISTS "${endstone_SOURCE_DIR}/src/bedrock/server/commands/command_registry.h")
+        file(READ "${endstone_SOURCE_DIR}/src/bedrock/server/commands/command_registry.h"
+            ENDSTONE_COMMAND_REGISTRY_H_CONTENT)
+        string(REPLACE "R\"(, \"children\": {})\", *it->child)"
+            "R\"(, \"children\": {})\", 0)"
+            ENDSTONE_COMMAND_REGISTRY_H_CONTENT
+            "${ENDSTONE_COMMAND_REGISTRY_H_CONTENT}")
+        file(WRITE "${endstone_SOURCE_DIR}/src/bedrock/server/commands/command_registry.h"
+            "${ENDSTONE_COMMAND_REGISTRY_H_CONTENT}")
+    endif()
+
+    set(ENDSTONE_RESULT_H "${endstone_SOURCE_DIR}/src/bedrock/platform/result.h")
+    if(NOT EXISTS "${ENDSTONE_RESULT_H}")
+        message(FATAL_ERROR "Endstone v0.11.6 result.h was not found at ${ENDSTONE_RESULT_H}")
+    endif()
+    file(READ "${ENDSTONE_RESULT_H}" ENDSTONE_RESULT_H_CONTENT)
+    string(REPLACE
+        "std::format(\"Error: {}\\nCall stack:{}\", error, call_stack)"
+        "std::string(\"Error: \") + error"
+        ENDSTONE_RESULT_H_CONTENT "${ENDSTONE_RESULT_H_CONTENT}")
+    set(ENDSTONE_RESULT_ERROR_CODE_FORMAT "std::format(\"{}\", error_info.error)")
+    set(ENDSTONE_RESULT_ERROR_CODE_MESSAGE "error_info.error.message()")
+    string(FIND "${ENDSTONE_RESULT_H_CONTENT}"
+        "${ENDSTONE_RESULT_ERROR_CODE_FORMAT}"
+        ENDSTONE_RESULT_ERROR_CODE_FORMAT_INDEX)
+    string(FIND "${ENDSTONE_RESULT_H_CONTENT}"
+        "${ENDSTONE_RESULT_ERROR_CODE_MESSAGE}"
+        ENDSTONE_RESULT_ERROR_CODE_MESSAGE_INDEX)
+    if(ENDSTONE_RESULT_ERROR_CODE_FORMAT_INDEX EQUAL -1 AND
+       ENDSTONE_RESULT_ERROR_CODE_MESSAGE_INDEX EQUAL -1)
+        message(FATAL_ERROR
+            "Endstone v0.11.6 result.h no longer contains the expected std::error_code formatting expression")
+    endif()
+    if(NOT ENDSTONE_RESULT_ERROR_CODE_FORMAT_INDEX EQUAL -1)
+        string(REPLACE
+            "${ENDSTONE_RESULT_ERROR_CODE_FORMAT}"
+            "${ENDSTONE_RESULT_ERROR_CODE_MESSAGE}"
+            ENDSTONE_RESULT_H_CONTENT "${ENDSTONE_RESULT_H_CONTENT}")
+    endif()
+    file(WRITE "${ENDSTONE_RESULT_H}" "${ENDSTONE_RESULT_H_CONTENT}")
+
+    # Candidate/verified adapters pass Bedrock-owned types across the ABI. Link
+    # the matching tag's typed implementations rather than adding guessed
+    # addresses or untyped no-op shims.
+    if(NOT TARGET bedrock::bedrock)
+        add_subdirectory(
+            "${endstone_SOURCE_DIR}/src/bedrock"
+            "${endstone_BINARY_DIR}/src/bedrock"
+            EXCLUDE_FROM_ALL
+        )
+    endif()
+
+    set(SIGN_PLUGIN_SOURCES
+        src/plugin.cpp
+        src/sign_native_runtime_bridge.cpp
+    )
     if(ENDSTONE_SIGN_BUILD_NATIVE_2630)
         list(APPEND SIGN_PLUGIN_SOURCES src/bds_26_30_adapter.cpp)
+    endif()
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+        list(APPEND SIGN_PLUGIN_SOURCES src/experimental_bds_26_30_adapter.cpp)
     endif()
     if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
         list(APPEND SIGN_PLUGIN_SOURCES src/verified_bds_26_30_adapter.cpp)
@@ -134,20 +273,156 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     endstone_add_plugin(sign_api ${SIGN_PLUGIN_SOURCES})
     set_target_properties(sign_api PROPERTIES
         PREFIX ""
-        OUTPUT_NAME "endstone_sign_bds_1_26_33"
+        OUTPUT_NAME "endstone_sign_bds_${ENDSTONE_BDS_BUILD_FILE}"
+        BUILD_RPATH_USE_ORIGIN ON
+        INSTALL_RPATH ""
+        INSTALL_RPATH_USE_LINK_PATH FALSE
         CXX_VISIBILITY_PRESET hidden
         VISIBILITY_INLINES_HIDDEN ON
     )
-    target_include_directories(sign_api PRIVATE include)
-    target_link_libraries(sign_api PRIVATE endstone_sign_core endstone::endstone)
+    target_include_directories(sign_api PRIVATE
+        include
+        ${endstone_SOURCE_DIR}/src
+        ${endstone_SOURCE_DIR}/include
+        ${endstone_BINARY_DIR}/include
+        ${endstone_BINARY_DIR}/include/generated
+    )
     target_compile_definitions(sign_api PRIVATE
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
+        ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_BDS_BUILD="${ENDSTONE_BDS_BUILD}"
         ENDSTONE_SIGN_BDS_PACKAGE="${ENDSTONE_BDS_PACKAGE}"
-        ENDSTONE_SIGN_ENDSTONE_VERSION="0.11.6"
+        ENDSTONE_SIGN_ENDSTONE_VERSION="${ENDSTONE_EXACT_VERSION}"
         ENDSTONE_SIGN_VERSION="${ENDSTONE_SIGN_RELEASE_VERSION}"
+        ENTT_SPARSE_PAGE=2048
+        ENTT_NO_MIXIN=1
     )
+    target_link_libraries(sign_api PRIVATE
+        endstone_sign_core
+        bedrock::bedrock
+        endstone::endstone
+        aklomp::base64
+        boost::boost
+        concurrentqueue::concurrentqueue
+        cpptrace::cpptrace
+        date::date
+        EnTT::EnTT
+        nonstd::expected-lite
+        funchook::funchook
+        glm::glm
+        magic_enum::magic_enum
+        Microsoft.GSL::GSL
+        nlohmann_json::nlohmann_json
+        raknet::raknet
+        replxx::replxx
+        sentry::sentry
+        spdlog::spdlog
+        tomlplusplus::tomlplusplus
+        zstr::zstr
+        ${CMAKE_DL_LIBS}
+    )
+    if(UNIX)
+        target_compile_options(sign_api PRIVATE -fms-extensions)
+        target_link_options(sign_api PRIVATE "LINKER:--exclude-libs,ALL")
+    endif()
+    if(UNIX AND NOT APPLE)
+        add_custom_command(TARGET sign_api POST_BUILD
+            COMMAND "${CMAKE_COMMAND}"
+                "-DPLUGIN_FILE:FILEPATH=$<TARGET_FILE:sign_api>"
+                "-DNM_TOOL:FILEPATH=${CMAKE_NM}"
+                -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_no_undefined_bedrock_symbols.cmake"
+            COMMENT "Checking the Sign plugin for unresolved private Bedrock ABI symbols"
+            VERBATIM
+        )
+    endif()
+
+    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
+        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/live_python_bindings.cpp")
+            message(FATAL_ERROR
+                "Live Python bridge requested, but src/live_python_bindings.cpp is absent")
+        endif()
+        pybind11_add_module(_endstone_sign_live MODULE src/live_python_bindings.cpp)
+        set_target_properties(_endstone_sign_live PROPERTIES
+            BUILD_RPATH_USE_ORIGIN ON
+            INSTALL_RPATH ""
+            INSTALL_RPATH_USE_LINK_PATH FALSE
+            CXX_VISIBILITY_PRESET hidden
+            VISIBILITY_INLINES_HIDDEN ON
+        )
+        target_compile_features(_endstone_sign_live PRIVATE cxx_std_20)
+        target_include_directories(_endstone_sign_live PRIVATE
+            include
+            ${endstone_SOURCE_DIR}/include
+            ${endstone_SOURCE_DIR}/src
+            ${endstone_BINARY_DIR}/include
+            ${endstone_BINARY_DIR}/include/generated
+        )
+        target_link_libraries(_endstone_sign_live PRIVATE
+            endstone_sign_core
+            endstone::endstone
+            pybind11::module
+        )
+        if(UNIX)
+            target_compile_options(_endstone_sign_live PRIVATE -fms-extensions)
+            target_link_options(_endstone_sign_live PRIVATE "LINKER:--exclude-libs,ALL")
+            if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+                target_compile_options(_endstone_sign_live PRIVATE -stdlib=libc++)
+                target_link_options(_endstone_sign_live PRIVATE -stdlib=libc++)
+                target_link_libraries(_endstone_sign_live PRIVATE
+                    -static-libgcc
+                    -static-libstdc++
+                    libc++.a
+                    libc++abi.a
+                )
+            endif()
+        endif()
+        add_dependencies(sign_api _endstone_sign_live)
+        if(UNIX AND NOT APPLE)
+            add_custom_command(TARGET _endstone_sign_live POST_BUILD
+                COMMAND "${CMAKE_COMMAND}"
+                    "-DPLUGIN_FILE:FILEPATH=$<TARGET_FILE:_endstone_sign_live>"
+                    "-DNM_TOOL:FILEPATH=${CMAKE_NM}"
+                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_no_undefined_bedrock_symbols.cmake"
+                COMMENT "Checking the Sign test bridge for unresolved private Bedrock ABI symbols"
+                VERBATIM
+            )
+        endif()
+    endif()
+
+    install(TARGETS sign_api
+        RUNTIME DESTINATION plugins COMPONENT sign_package
+        LIBRARY DESTINATION plugins COMPONENT sign_package
+        ARCHIVE DESTINATION lib COMPONENT sign_package
+    )
+    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
+        install(TARGETS _endstone_sign_live
+            RUNTIME DESTINATION python COMPONENT sign_package
+            LIBRARY DESTINATION python COMPONENT sign_package
+        )
+    endif()
+    install(DIRECTORY python/endstone_sign DESTINATION python COMPONENT sign_package
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+        PATTERN "*.pyo" EXCLUDE
+    )
+    install(DIRECTORY include/endstone_sign DESTINATION include COMPONENT sign_package)
+    install(DIRECTORY docs native DESTINATION . COMPONENT sign_package
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+    )
+    install(FILES
+        README.md
+        LICENSE
+        CHANGELOG.md
+        BUILD_STATUS.md
+        VALIDATION_RESULTS.md
+        SOURCE_RELEASE.json
+        DESTINATION .
+        COMPONENT sign_package
+    )
+    install(FILES compatibility/versions.json
+        DESTINATION compatibility COMPONENT sign_package)
 endif()
 
 if(ENDSTONE_SIGN_BUILD_TESTS)
@@ -166,6 +441,20 @@ if(ENDSTONE_SIGN_BUILD_TESTS)
         endif()
     endif()
     add_test(NAME sign_tests COMMAND sign_tests)
+    add_test(
+        NAME sign_symbol_gate_accepts_public_runtime_imports
+        COMMAND "${CMAKE_COMMAND}"
+            "-DNM_OUTPUT_FILE:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/nm_public_runtime_only.txt"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_no_undefined_bedrock_symbols.cmake"
+    )
+    add_test(
+        NAME sign_symbol_gate_rejects_private_sign_actor_import
+        COMMAND "${CMAKE_COMMAND}"
+            "-DNM_OUTPUT_FILE:FILEPATH=${CMAKE_CURRENT_SOURCE_DIR}/cmake/nm_undefined_sign_actor.txt"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_no_undefined_bedrock_symbols.cmake"
+    )
+    set_tests_properties(sign_symbol_gate_rejects_private_sign_actor_import
+        PROPERTIES WILL_FAIL TRUE)
 endif()
 
 install(TARGETS endstone_sign_core ARCHIVE DESTINATION lib)

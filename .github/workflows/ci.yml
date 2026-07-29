@@ -2,14 +2,50 @@ name: Build Sign API
 
 on:
   push:
+    branches: ["**"]
   pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: sign-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  RELEASE_VERSION: 0.2.0-alpha.1
+  PROJECT_SLUG: endstone-sign-api
+
 jobs:
+  metadata:
+    name: Verify release and native-gate metadata
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Verify synchronized project metadata
+        run: |
+          python scripts/verify_project_metadata.py
+          python tools/verify_fail_closed.py
+      - name: Verify both native manifests remain unverified
+        shell: bash
+        run: |
+          set -euxo pipefail
+          for platform in linux-x64 windows-x64; do
+            manifest="native/manifests/${platform}-1.26.33.1.json"
+            python tools/verify_native_manifest.py "$manifest" --allow-incomplete
+            if python tools/verify_native_manifest.py "$manifest"; then
+              echo "$manifest unexpectedly passed the verified-release gate" >&2
+              exit 1
+            fi
+          done
+
   portable:
+    name: Portable tests (${{ matrix.os }}, Python ${{ matrix.python }})
+    needs: [metadata]
     strategy:
       fail-fast: false
       matrix:
@@ -26,34 +62,198 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - name: Verify metadata
-        run: python scripts/verify_project_metadata.py
-      - name: Verify native boundary remains closed
-        run: python tools/verify_fail_closed.py
-      - name: Verify blocked native manifests are structurally valid
-        shell: bash
-        run: |
-          python tools/verify_native_manifest.py native/manifests/linux-x64-1.26.33.1.json --allow-incomplete
-          python tools/verify_native_manifest.py native/manifests/windows-x64-1.26.33.1.json --allow-incomplete
-          if python tools/verify_native_manifest.py native/manifests/linux-x64-1.26.33.1.json; then
-            echo "Incomplete Linux manifest unexpectedly opened the native gate" >&2
-            exit 1
-          fi
-          if python tools/activate_verified_manifest.py native/manifests/linux-x64-1.26.33.1.json; then
-            echo "Activation unexpectedly accepted an incomplete manifest" >&2
-            exit 1
-          fi
-      - name: Install Python package
+      - name: Install portable Python package
         run: python -m pip install -e .
-      - name: Compile Python package
-        run: python -m compileall -q python
-      - name: Run Python tests
-        run: python -m unittest discover -s tests/python -v
-      - name: Build Python wheel
+      - name: Compile and test Python package
+        run: |
+          python -m compileall -q python
+          python -m unittest discover -s tests/python -v
+      - name: Build portable wheel
         run: python -m pip wheel . --no-deps -w dist
       - name: Configure portable C++ build
-        run: cmake -S . -B build -DENDSTONE_SIGN_BUILD_TESTS=ON -DENDSTONE_SIGN_BUILD_SHARED=ON -DENDSTONE_SIGN_BUILD_PLUGIN=OFF
-      - name: Build portable C++ core
-        run: cmake --build build --config Release --parallel
-      - name: Run C++ tests
-        run: ctest --test-dir build -C Release --output-on-failure
+        run: >-
+          cmake -S . -B build
+          -DENDSTONE_SIGN_BUILD_TESTS=ON
+          -DENDSTONE_SIGN_BUILD_SHARED=ON
+          -DENDSTONE_SIGN_BUILD_PLUGIN=OFF
+      - name: Build and test portable C++ targets
+        run: |
+          cmake --build build --config Release --parallel
+          ctest --test-dir build -C Release --output-on-failure
+
+  exact-probe-candidate:
+    name: BDS 1.26.33 disposable-server candidate (${{ matrix.platform }})
+    needs: [metadata]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux-x64
+            bds: "1.26.33"
+          - os: windows-2022
+            platform: windows-x64
+            bds: "1.26.33"
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install exact-build dependencies
+        run: >-
+          python -m pip install
+          "conan==2.31.1"
+          "build==1.4.0"
+          "setuptools==80.9.0"
+          "wheel==0.46.3"
+          "endstone==0.11.6"
+
+      - name: Install Linux compiler toolchain
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y lsb-release wget software-properties-common gnupg
+          if ! command -v clang-18 >/dev/null 2>&1; then
+            wget https://apt.llvm.org/llvm.sh
+            chmod +x llvm.sh
+            sudo ./llvm.sh 18
+          fi
+          sudo apt-get install -y ninja-build clang-tools-18 libc++-18-dev libc++abi-18-dev
+          sudo update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-18 100 || true
+          echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
+          clang-18 --version
+          clang++-18 --version
+          ninja --version
+
+      - name: Locate Windows toolchains
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          git config --global core.longpaths true
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
+          if (-not (Test-Path $vswhere)) { throw "vswhere.exe was not found at $vswhere" }
+          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if (-not $vs) { throw "Visual Studio 2022 C++ tools were not found" }
+          "VS_PATH=$vs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          $llvm = "C:\Program Files\LLVM\bin"
+          if (-not (Test-Path (Join-Path $llvm "clang-cl.exe"))) {
+            choco install llvm -y --no-progress
+          }
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja -y --no-progress
+          }
+          $llvm | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          cmake --version
+
+      - name: Build and package Linux probe candidate
+        if: runner.os == 'Linux'
+        shell: bash
+        run: >-
+          python scripts/build_exact.py
+          --bds "${{ matrix.bds }}"
+          --platform "${{ matrix.platform }}"
+          --parallel 2
+
+      - name: Build and package Windows probe candidate
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          call "%VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
+          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
+          clang-cl --version
+          lld-link --version
+          ninja --version
+          python scripts\build_exact.py --bds "${{ matrix.bds }}" --platform "${{ matrix.platform }}" --parallel 2
+
+      - name: Verify platform release assets
+        run: >-
+          python scripts/verify_release_assets.py
+          --slug "${{ env.PROJECT_SLUG }}"
+          --version "${{ env.RELEASE_VERSION }}"
+          --bds "${{ matrix.bds }}"
+          --platform "${{ matrix.platform }}"
+          --release-dir dist/release
+
+      - name: Smoke-test Linux test-command wheel
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          wheels=(dist/release/*-cp314-cp314-linux_x86_64.whl)
+          test "${#wheels[@]}" -eq 1
+          python tests/python/verify_test_wheel.py "${wheels[0]}"
+
+      - name: Smoke-test Windows test-command wheel
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $wheels = @(Get-ChildItem dist/release -Filter "*-cp314-cp314-win_amd64.whl")
+          if ($wheels.Count -ne 1) { throw "Expected one Windows test wheel; found $($wheels.Count)" }
+          python tests/python/verify_test_wheel.py "$($wheels[0].FullName)"
+
+      - name: Upload disposable-server test package
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PROJECT_SLUG }}-probe-candidate-${{ matrix.bds }}-${{ matrix.platform }}
+          path: dist/release/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: Upload failed-build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PROJECT_SLUG }}-diagnostics-${{ matrix.bds }}-${{ matrix.platform }}
+          path: |
+            build-exact/**/CMakeCache.txt
+            build-exact/**/CMakeFiles/CMakeOutput.log
+            build-exact/**/CMakeFiles/CMakeError.log
+            build-exact/**/*.log
+            dist/**/*.json
+            dist/diagnostics/**/*.log
+            .conan2-ci/**/profiles/*
+            build-exact/**/conan/**/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  test-wheel:
+    name: Verify both Sign API server-test wheels
+    needs: [metadata, exact-probe-candidate]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+      - name: Install runtime and local test dependencies
+        run: |
+          python -m pip install "endstone==0.11.6"
+          python -m pip install -e .
+      - name: Download both platform packages
+        uses: actions/download-artifact@v8
+        with:
+          pattern: ${{ env.PROJECT_SLUG }}-probe-candidate-*
+          path: dist/test-wheel
+          merge-multiple: true
+      - name: Verify wheel structure and bundled native bridges
+        shell: bash
+        run: |
+          mapfile -t wheels < <(find dist/test-wheel -maxdepth 1 -type f -name '*.whl' | sort)
+          test "${#wheels[@]}" -eq 2
+          for wheel in "${wheels[@]}"; do
+            python tests/python/verify_test_wheel.py "$wheel" --structure-only
+          done
+      - name: Run Python command-handler tests
+        run: python -m unittest discover -s tests/python -v
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.PROJECT_SLUG }}-test-wheels
+          path: dist/test-wheel/*.whl
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,2 @@
+_ZNK14SignBlockActor12getFrontTextEv U
+_ZNK8endstone6Server10getVersionEv U

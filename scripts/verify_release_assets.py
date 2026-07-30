@@ -250,7 +250,7 @@ def main() -> int:
 
     stem = f"{args.slug}-v{args.version}-bds-{args.bds}-{args.platform}"
     suffix = ".dll" if args.platform.startswith("windows") else ".so"
-    raw = args.release_dir / f"{stem}{suffix}"
+    raw = args.release_dir / f"endstone_sign_bds_{args.bds.replace('.', '_')}{suffix}"
     archive_path = args.release_dir / f"{stem}.zip"
     checksums = args.release_dir / f"{stem}.sha256"
     wheel_platform = "win_amd64" if args.platform.startswith("windows") else "linux_x86_64"

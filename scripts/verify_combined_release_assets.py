@@ -26,11 +26,12 @@ def expected_assets(slug: str, release: str, bds: str) -> set[str]:
         raise SystemExit(f"Unsupported project slug: {slug!r}")
     wheel_version = pep440_version(release)
     stem = f"{slug}-v{release}-bds-{bds}"
+    plugin_stem = f"endstone_sign_bds_{bds.replace('.', '_')}"
     return {
-        f"{stem}-linux-x64.so",
+        f"{plugin_stem}.so",
         f"{stem}-linux-x64.zip",
         f"{stem}-linux-x64.sha256",
-        f"{stem}-windows-x64.dll",
+        f"{plugin_stem}.dll",
         f"{stem}-windows-x64.zip",
         f"{stem}-windows-x64.sha256",
         f"{WHEEL_PREFIX}-{wheel_version}-cp314-cp314-linux_x86_64.whl",

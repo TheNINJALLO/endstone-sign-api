@@ -1,6 +1,7 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.3`
+**Release:** `v0.2.0-alpha.4`
+
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
 
@@ -8,7 +9,7 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.3 also ships a deliberately narrow native probe adapter for a backed-up disposable server.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.4 also ships a deliberately narrow native probe adapter for a backed-up disposable server. Its standalone native downloads now use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
 
 On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
 

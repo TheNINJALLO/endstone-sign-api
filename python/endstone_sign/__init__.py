@@ -69,7 +69,7 @@ from .schema import (
 )
 from .service import InMemorySignAdapter, InMemorySignService, SignAdapter, SignService
 
-__version__ = "0.2.0a3"
+__version__ = "0.2.0a4"
 __service_name__ = "endstone:sign:v2"
 __service_abi__ = 2
 

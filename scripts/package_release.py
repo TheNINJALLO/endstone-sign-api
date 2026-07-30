@@ -94,12 +94,20 @@ def main() -> int:
         raise SystemExit(
             f"Plugin suffix {plugin.suffix!r} does not match platform {args.platform}"
         )
+    expected_plugin_name = (
+        f"{info['plugin_prefix']}{args.bds.replace('.', '_')}{expected_suffix}"
+    )
+    if plugin.name != expected_plugin_name:
+        raise SystemExit(
+            f"Packaged plugin name {plugin.name!r} does not match exact build "
+            f"{expected_plugin_name!r}"
+        )
     if plugin.stat().st_size == 0:
         raise SystemExit(f"Packaged plugin is empty: {plugin}")
 
     release_dir.mkdir(parents=True, exist_ok=True)
     release_stem = f"{info['slug']}-v{args.version}-bds-{args.bds}-{args.platform}"
-    raw_plugin = release_dir / f"{release_stem}{expected_suffix}"
+    raw_plugin = release_dir / expected_plugin_name
     shutil.copy2(plugin, raw_plugin)
 
     wheel_platform = "win_amd64" if args.platform.startswith("windows") else "linux_x86_64"

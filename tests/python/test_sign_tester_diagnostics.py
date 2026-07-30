@@ -121,13 +121,42 @@ class SignTesterDiagnosticTests(unittest.TestCase):
             self.assertIsNone(selected)
             self.assertEqual(discovery["status"], "not_found")
             self.assertEqual(discovery["candidates"], [])
+            self.assertEqual(
+                discovery["patterns"],
+                [
+                    "plugins/**/endstone_sign_bds_1_26_33.so",
+                    (
+                        "plugins/**/endstone-sign-api-v0.2.0-alpha.3-"
+                        "bds-1.26.33-linux-x64.so"
+                    ),
+                ],
+            )
 
-            first = working_directory / "plugins" / "first" / "endstone_sign_bds_a.so"
-            second = working_directory / "plugins" / "second" / "endstone_sign_bds_b.so"
+            first = (
+                working_directory
+                / "plugins"
+                / "first"
+                / "endstone_sign_bds_1_26_33.so"
+            )
+            second = (
+                working_directory
+                / "plugins"
+                / "second"
+                / "endstone-sign-api-v0.2.0-alpha.3-bds-1.26.33-linux-x64.so"
+            )
+            unrelated = working_directory / "plugins" / "unrelated.so"
             first.parent.mkdir(parents=True)
-            second.parent.mkdir(parents=True)
             first.write_bytes(b"first")
+
+            selected, discovery = PLUGIN_CLASS._discover_native_plugin(
+                working_directory, ".so"
+            )
+            self.assertEqual(selected, first.resolve())
+            self.assertEqual(discovery["status"], "selected")
+
+            second.parent.mkdir(parents=True)
             second.write_bytes(b"second")
+            unrelated.write_bytes(b"unrelated")
             selected, discovery = PLUGIN_CLASS._discover_native_plugin(
                 working_directory, ".so"
             )
@@ -136,16 +165,58 @@ class SignTesterDiagnosticTests(unittest.TestCase):
             self.assertEqual(
                 discovery["candidates"],
                 [
-                    "plugins/first/endstone_sign_bds_a.so",
-                    "plugins/second/endstone_sign_bds_b.so",
+                    "plugins/first/endstone_sign_bds_1_26_33.so",
+                    (
+                        "plugins/second/"
+                        "endstone-sign-api-v0.2.0-alpha.3-bds-1.26.33-linux-x64.so"
+                    ),
                 ],
             )
 
-            second.unlink()
+            first.unlink()
             selected, discovery = PLUGIN_CLASS._discover_native_plugin(
                 working_directory, ".so"
             )
-            self.assertEqual(selected, first)
+            self.assertEqual(selected, second.resolve())
+            self.assertEqual(discovery["status"], "selected")
+
+    def test_plugin_discovery_falls_back_to_server_executable_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            workspace = Path(temporary)
+            working_directory = workspace / "panel-working-directory"
+            server_directory = workspace / "server"
+            working_directory.mkdir()
+            plugin = server_directory / "plugins" / "endstone_sign_bds_1_26_33.so"
+            plugin.parent.mkdir(parents=True)
+            plugin.write_bytes(b"plugin")
+
+            selected, discovery = PLUGIN_CLASS._discover_native_plugin(
+                working_directory,
+                ".so",
+                server_directory / "bedrock_server",
+            )
+
+            self.assertEqual(selected, plugin.resolve())
+            self.assertEqual(discovery["status"], "selected")
+            self.assertEqual(discovery["candidates"], [plugin.resolve().as_posix()])
+            self.assertEqual(len(discovery["roots"]), 2)
+
+    def test_plugin_discovery_accepts_legacy_windows_release_name(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            working_directory = Path(temporary)
+            plugin = (
+                working_directory
+                / "plugins"
+                / "endstone-sign-api-v0.2.0-alpha.3-bds-1.26.33-windows-x64.dll"
+            )
+            plugin.parent.mkdir()
+            plugin.write_bytes(b"plugin")
+
+            selected, discovery = PLUGIN_CLASS._discover_native_plugin(
+                working_directory, ".dll"
+            )
+
+            self.assertEqual(selected, plugin.resolve())
             self.assertEqual(discovery["status"], "selected")
 
     def test_write_text_preflight_blocks_mutation_and_records_why(self) -> None:

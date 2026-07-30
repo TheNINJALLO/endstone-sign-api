@@ -15,7 +15,7 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = sys.executable
-VERSION = "0.2.0-alpha.3"
+VERSION = "0.2.0-alpha.4"
 SLUG = "endstone-sign-api"
 
 
@@ -53,8 +53,8 @@ class SignReleaseToolTests(unittest.TestCase):
         bridge.parent.mkdir(parents=True)
         bridge_payload = SignReleaseToolTests.fake_pe()
         bridge.write_bytes(bridge_payload)
-        wheel = stage / "plugins" / "endstone_sign_tester-0.2.0a3-cp314-cp314-win_amd64.whl"
-        dist_info = "endstone_sign_tester-0.2.0a3.dist-info"
+        wheel = stage / "plugins" / "endstone_sign_tester-0.2.0a4-cp314-cp314-win_amd64.whl"
+        dist_info = "endstone_sign_tester-0.2.0a4.dist-info"
         files = {
             "endstone_sign_tester/__init__.py": b"",
             "endstone_sign_tester/plugin.py": b"",
@@ -70,7 +70,7 @@ class SignReleaseToolTests(unittest.TestCase):
             "endstone_sign/service.py": b"",
             f"{dist_info}/METADATA": (
                 b"Metadata-Version: 2.4\nName: endstone-sign-tester\n"
-                b"Version: 0.2.0a3\nRequires-Python: ==3.14.*\n"
+                b"Version: 0.2.0a4\nRequires-Python: ==3.14.*\n"
                 b"Requires-Dist: endstone==0.11.6\n\n"
             ),
             f"{dist_info}/WHEEL": (
@@ -118,10 +118,10 @@ class SignReleaseToolTests(unittest.TestCase):
             )
             stem = f"{SLUG}-v{VERSION}-bds-1.26.33-windows-x64"
             expected = {
-                f"{stem}.dll",
+                "endstone_sign_bds_1_26_33.dll",
                 f"{stem}.zip",
                 f"{stem}.sha256",
-                "endstone_sign_tester-0.2.0a3-cp314-cp314-win_amd64.whl",
+                "endstone_sign_tester-0.2.0a4-cp314-cp314-win_amd64.whl",
             }
             self.assertEqual({path.name for path in release.iterdir()}, expected)
             archive = release / f"{stem}.zip"
@@ -200,6 +200,28 @@ class SignReleaseToolTests(unittest.TestCase):
             self.assertNotEqual(wrong_bds.returncode, 0)
             self.assertIn("Unsupported BDS build", wrong_bds.stdout)
 
+            wrong_plugin = stage / "plugins" / "endstone_sign_bds_wrong.dll"
+            wrong_plugin.parent.mkdir(parents=True)
+            wrong_plugin.write_bytes(self.fake_pe())
+            wrong_name = self.run_tool(
+                "package_release.py",
+                "--project",
+                "sign",
+                "--version",
+                VERSION,
+                "--bds",
+                "1.26.33",
+                "--platform",
+                "windows-x64",
+                "--stage",
+                str(stage),
+                "--release-dir",
+                str(Path(temporary) / "wrong-name-release"),
+                check=False,
+            )
+            self.assertNotEqual(wrong_name.returncode, 0)
+            self.assertIn("does not match exact build", wrong_name.stdout)
+
     def test_combined_verifier_requires_exact_eight_file_set(self) -> None:
         scratch = ROOT / "build" / "sign-release-tool-tests"
         scratch.mkdir(parents=True, exist_ok=True)
@@ -207,14 +229,14 @@ class SignReleaseToolTests(unittest.TestCase):
             release = Path(temporary)
             stem = f"{SLUG}-v{VERSION}-bds-1.26.33"
             names = {
-                f"{stem}-linux-x64.so",
+                "endstone_sign_bds_1_26_33.so",
                 f"{stem}-linux-x64.zip",
                 f"{stem}-linux-x64.sha256",
-                f"{stem}-windows-x64.dll",
+                "endstone_sign_bds_1_26_33.dll",
                 f"{stem}-windows-x64.zip",
                 f"{stem}-windows-x64.sha256",
-                "endstone_sign_tester-0.2.0a3-cp314-cp314-linux_x86_64.whl",
-                "endstone_sign_tester-0.2.0a3-cp314-cp314-win_amd64.whl",
+                "endstone_sign_tester-0.2.0a4-cp314-cp314-linux_x86_64.whl",
+                "endstone_sign_tester-0.2.0a4-cp314-cp314-win_amd64.whl",
             }
             for name in names:
                 (release / name).write_bytes(b"x")

@@ -151,7 +151,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
             selected, discovery = PLUGIN_CLASS._discover_native_plugin(
                 working_directory, ".so"
             )
-            self.assertEqual(selected, first)
+            self.assertEqual(selected, first.resolve())
             self.assertEqual(discovery["status"], "selected")
 
             second.parent.mkdir(parents=True)
@@ -177,7 +177,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
             selected, discovery = PLUGIN_CLASS._discover_native_plugin(
                 working_directory, ".so"
             )
-            self.assertEqual(selected, second)
+            self.assertEqual(selected, second.resolve())
             self.assertEqual(discovery["status"], "selected")
 
     def test_plugin_discovery_falls_back_to_server_executable_directory(self) -> None:
@@ -196,7 +196,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
                 server_directory / "bedrock_server",
             )
 
-            self.assertEqual(selected, plugin)
+            self.assertEqual(selected, plugin.resolve())
             self.assertEqual(discovery["status"], "selected")
             self.assertEqual(discovery["candidates"], [plugin.resolve().as_posix()])
             self.assertEqual(len(discovery["roots"]), 2)
@@ -216,7 +216,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
                 working_directory, ".dll"
             )
 
-            self.assertEqual(selected, plugin)
+            self.assertEqual(selected, plugin.resolve())
             self.assertEqual(discovery["status"], "selected")
 
     def test_write_text_preflight_blocks_mutation_and_records_why(self) -> None:

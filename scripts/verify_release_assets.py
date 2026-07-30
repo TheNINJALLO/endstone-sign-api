@@ -190,6 +190,15 @@ def verify_wheel(
         missing_api = EXPECTED_API_MODULES.difference(names)
         if missing_api:
             raise SystemExit(f"Tester wheel is missing vendored API modules: {sorted(missing_api)}")
+        required_tester_files = {
+            "endstone_sign_tester/automation.py",
+            "endstone_sign_tester/default-config.toml",
+        }
+        missing_tester = required_tester_files.difference(names)
+        if missing_tester:
+            raise SystemExit(
+                f"Tester wheel is missing automated runner files: {sorted(missing_tester)}"
+            )
         bridges = [
             name
             for name in names

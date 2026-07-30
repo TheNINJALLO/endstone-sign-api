@@ -1,19 +1,26 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.4`
+Release: `0.2.0-alpha.5`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-07-29`
 
 ## Result
 
-The portable C++20 and Python API layers pass local validation. The alpha.4
-source contains an exact-gated Linux plain-text probe candidate; the complete
-native bridge remains disabled because the remaining symbol/ABI proof,
-player-edit hook, reviewed bridge, and disposable-world probes are incomplete.
+The portable C++20 and Python API layers pass local validation. The alpha.5
+source contains an exact-gated Linux plain-text/structural matrix probe
+candidate; the complete native bridge remains disabled because the remaining
+symbol/ABI proof, player-edit hook, reviewed bridge, and disposable-world
+probes are incomplete.
 
-Alpha.4 corrects the live-test packaging mismatch: standalone native downloads
-use their canonical install-ready plugin names, and the tester recognizes both
-canonical and legacy alpha.3 names from either the launch or executable root.
+The returned alpha.4 Linux evidence verified the canonical plugin discovery,
+exact executable identity, short unfiltered front/back text, client-visible
+text, player reconnect, and server-restart persistence for that narrow text
+case. It did not verify the other activation probes.
+
+Alpha.5 adds a strict 48-case default automation plan, capability-specific
+no-mutation gates, untruncated per-run evidence, cancellation, and
+ownership-aware cleanup. Structural writes are now exact-executable-hash gated
+inside the adapter; the Windows candidate cannot mutate.
 
 Release packages contain disposable-world `.dll`/`.so` candidates and tester
 wheels. They are experimental artifacts, not verified production plugins.
@@ -53,7 +60,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `34/34` passed |
+| Unit tests | `51/51` passed, including matrix config/planning/runner/race/cleanup-gate coverage |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -90,13 +97,18 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Generated C++ manifest remains closed | Passed |
 | Verified native bridge source absent | Passed |
 | Plugin registration guarded by `completeControl()` | Passed by source guard |
+| Structural mutations exact-executable-hash gated in adapter | Passed by source test |
+| Default matrix is 12 materials × 4 forms without cell collisions | Passed |
+| Advanced fields are capability-gated without native calls | Passed |
+| Automated evidence never activates the native manifest | Passed |
 
 ## Exact native work still required
 
 The following are intentionally unresolved and are required before a verified
 complete-control live plugin may be built:
 
-1. Run the alpha.4 front/back short-text probe against the exact Linux server.
+1. Run the alpha.5 automated matrix against the exact Linux server and return
+   `latest-matrix-report.json` plus the server log/world backup.
 2. Locate and behavior-confirm the remaining required symbols independently on
    Windows and Linux.
 3. Complete review of every ABI signature and calling contract.
@@ -109,4 +121,5 @@ complete-control live plugin may be built:
 
 Until those steps pass, verified complete-control registration remains closed;
 the exact-gated Linux probe registers only its explicitly reported partial
-capabilities.
+capabilities. Unsupported, skipped, and manual matrix coverage never counts as
+a passing activation result.

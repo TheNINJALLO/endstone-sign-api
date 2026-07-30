@@ -68,20 +68,33 @@ class FakeSender:
 
 
 class FakeBridge:
-    def __init__(self, write_text: bool) -> None:
+    def __init__(self, write_text: bool, **extra_capabilities: bool) -> None:
         self.write_text = write_text
+        self.extra_capabilities = extra_capabilities
         self.set_text_calls: list[tuple[Any, ...]] = []
 
     def status(self, server: Any) -> dict[str, Any]:
         return {
             "available": True,
             "adapter": "test-adapter",
-            "capabilities": {"write_text": self.write_text},
+            "capabilities": {
+                "exact_build_match": True,
+                "exact_binary_hash_match": True,
+                "capture": True,
+                "client_updates": True,
+                "read_text": self.write_text,
+                "write_text": self.write_text,
+                "front_and_back": self.write_text,
+                **self.extra_capabilities,
+            },
         }
 
     def set_text(self, *arguments: Any) -> dict[str, Any]:
         self.set_text_calls.append(arguments)
         return {"ok": True, "status": "applied", "message": "applied", "revision": 7}
+
+    def capture(self, *arguments: Any) -> dict[str, Any]:
+        return {"found": True, "revision": 6}
 
 
 class SetTextHarness:
@@ -101,6 +114,17 @@ class SetTextHarness:
     def _write_text_preflight(bridge: Any, server: Any) -> tuple[bool, str]:
         return PLUGIN_CLASS._write_text_preflight(bridge, server)
 
+    @staticmethod
+    def _mutation_preflight(
+        bridge: Any,
+        server: Any,
+        operation: str,
+        required_capabilities: tuple[str, ...] | list[str],
+    ) -> tuple[bool, str, dict[str, Any]]:
+        return PLUGIN_CLASS._mutation_preflight(
+            bridge, server, operation, required_capabilities
+        )
+
     def _save_invocation(
         self,
         report: dict[str, Any],
@@ -109,6 +133,212 @@ class SetTextHarness:
         response: dict[str, Any],
     ) -> None:
         self.invocations.append((operation, request, response))
+
+    def _capture(
+        self, sender: FakeSender, report: dict[str, Any], *, record: bool = True
+    ) -> dict[str, Any]:
+        return self.bridge.capture(self.server, *self._target(report))
+
+
+class FakeMatrixBlock:
+    def __init__(self) -> None:
+        self.type = "minecraft:air"
+
+    def set_type(self, block_type: str, apply_physics: bool = True) -> None:
+        self.type = block_type
+
+
+class FakeMatrixDimension:
+    def __init__(self) -> None:
+        self.blocks: dict[tuple[int, int, int], FakeMatrixBlock] = {}
+
+    def get_block_at(self, x: int, y: int, z: int) -> FakeMatrixBlock:
+        return self.blocks.setdefault((x, y, z), FakeMatrixBlock())
+
+
+class FakeMatrixLevel:
+    def __init__(self, dimension: FakeMatrixDimension) -> None:
+        self.dimension = dimension
+        self.name = "test-world"
+        self.seed = 12345
+
+    def get_dimension(self, name: str) -> FakeMatrixDimension:
+        return self.dimension
+
+
+class FakeMatrixLogger:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    def info(self, message: str) -> None:
+        self.messages.append(message)
+
+    def error(self, message: str) -> None:
+        self.messages.append(message)
+
+
+class FakeMatrixServer:
+    def __init__(self, dimension: FakeMatrixDimension) -> None:
+        self.level = FakeMatrixLevel(dimension)
+
+    def get_player(self, name: str) -> None:
+        return None
+
+
+class FakeMatrixBridge:
+    def __init__(self, dimension: FakeMatrixDimension) -> None:
+        self.dimension = dimension
+        self.snapshots: dict[tuple[int, int, int], dict[str, Any]] = {}
+        self.revision = 100
+        self.advanced_calls = 0
+
+    @staticmethod
+    def _caps() -> dict[str, bool]:
+        return {
+            "exact_build_match": True,
+            "exact_binary_hash_match": True,
+            "capture": True,
+            "client_updates": True,
+            "place": True,
+            "remove": True,
+            "read_text": True,
+            "write_text": True,
+            "front_and_back": True,
+            "per_line_write": True,
+            "text_color": False,
+            "glowing": False,
+            "waxed": False,
+        }
+
+    def status(self, server: Any) -> dict[str, Any]:
+        return {
+            "available": True,
+            "adapter": "fake-exact-matrix",
+            "capabilities": self._caps(),
+        }
+
+    def place(
+        self,
+        server: Any,
+        dimension: str,
+        x: int,
+        y: int,
+        z: int,
+        identifier: str,
+        states: dict[str, Any],
+    ) -> dict[str, Any]:
+        block = self.dimension.get_block_at(x, y, z)
+        if block.type != "minecraft:air":
+            return {"ok": False, "status": "block_occupied", "revision": 0}
+        block.type = identifier
+        self.revision += 1
+        kind = (
+            "wall_hanging"
+            if identifier.endswith("_hanging_sign") and states.get("hanging") is False
+            else "ceiling_hanging"
+            if identifier.endswith("_hanging_sign")
+            else "wall"
+            if identifier.endswith("wall_sign")
+            else "standing"
+        )
+        self.snapshots[(x, y, z)] = {
+            "found": True,
+            "dimension": dimension,
+            "x": x,
+            "y": y,
+            "z": z,
+            "block_identifier": identifier,
+            "kind": kind,
+            "states": dict(states),
+            "front": {"lines": ["", "", "", ""], "argb": 0xFF000000, "glowing": False},
+            "back": {"lines": ["", "", "", ""], "argb": 0xFF000000, "glowing": False},
+            "waxed": False,
+            "actor_status": "experimental_text_captured",
+            "revision": self.revision,
+        }
+        return {"ok": True, "status": "applied", "revision": self.revision}
+
+    def capture(
+        self, server: Any, dimension: str, x: int, y: int, z: int
+    ) -> dict[str, Any]:
+        snapshot = self.snapshots.get((x, y, z))
+        return {"found": False} if snapshot is None else {
+            **snapshot,
+            "front": dict(snapshot["front"]),
+            "back": dict(snapshot["back"]),
+            "states": dict(snapshot["states"]),
+        }
+
+    def set_text(
+        self,
+        server: Any,
+        dimension: str,
+        x: int,
+        y: int,
+        z: int,
+        side: str,
+        lines: list[str],
+        argb: int | None,
+        glowing: bool | None,
+        waxed: bool | None,
+        force: bool,
+        expected_revision: int | None,
+    ) -> dict[str, Any]:
+        if any(value is not None for value in (argb, glowing, waxed)):
+            self.advanced_calls += 1
+        snapshot = self.snapshots[(x, y, z)]
+        if expected_revision != snapshot["revision"]:
+            return {
+                "ok": False,
+                "status": "conflict",
+                "revision": snapshot["revision"],
+            }
+        snapshot[side]["lines"] = list(lines)
+        if argb is not None:
+            snapshot[side]["argb"] = argb
+        if glowing is not None:
+            snapshot[side]["glowing"] = glowing
+        if waxed is not None:
+            snapshot["waxed"] = waxed
+        self.revision += 1
+        snapshot["revision"] = self.revision
+        return {"ok": True, "status": "applied", "revision": self.revision}
+
+    def remove(
+        self,
+        server: Any,
+        dimension: str,
+        x: int,
+        y: int,
+        z: int,
+        force: bool,
+        expected_revision: int,
+    ) -> dict[str, Any]:
+        snapshot = self.snapshots.get((x, y, z))
+        if snapshot is None:
+            return {"ok": False, "status": "not_a_sign", "revision": 0}
+        if snapshot["revision"] != expected_revision:
+            return {
+                "ok": False,
+                "status": "conflict",
+                "revision": snapshot["revision"],
+            }
+        del self.snapshots[(x, y, z)]
+        self.dimension.get_block_at(x, y, z).type = "minecraft:air"
+        return {"ok": True, "status": "applied", "revision": 0}
+
+
+def load_automation_module() -> ModuleType:
+    module_name = "_endstone_sign_tester_automation_tests"
+    spec = importlib.util.spec_from_file_location(module_name, PACKAGE_DIR / "automation.py")
+    if spec is None or spec.loader is None:
+        raise AssertionError("could not load automation module")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+AUTOMATION_MODULE = load_automation_module()
 
 
 class SignTesterDiagnosticTests(unittest.TestCase):
@@ -237,7 +467,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         self.assertIsNotNone(response)
         self.assertEqual(response["status"], "unsupported")
         self.assertFalse(response["mutation_attempted"])
-        self.assertIn("write_text capability is disabled", response["message"])
+        self.assertIn("write_text gate is closed", response["message"])
         self.assertEqual(len(harness.invocations), 1)
         self.assertEqual(harness.invocations[0][0], "set_text")
 
@@ -255,9 +485,34 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
 
         self.assertEqual(len(bridge.set_text_calls), 1)
+        self.assertFalse(bridge.set_text_calls[0][-2])
+        self.assertEqual(bridge.set_text_calls[0][-1], 6)
         self.assertIsNotNone(response)
         self.assertTrue(response["ok"])
+        self.assertEqual(harness.invocations[0][1]["expected_revision"], 6)
         self.assertEqual(harness.invocations[0][2]["status"], "applied")
+
+    def test_advanced_fields_require_their_specific_capability(self) -> None:
+        for field, keyword in (
+            ("text_color", {"argb": 0xFF00FF00}),
+            ("glowing", {"glowing": True}),
+            ("waxed", {"waxed": True}),
+        ):
+            with self.subTest(field=field):
+                bridge = FakeBridge(write_text=True, **{field: False})
+                harness = SetTextHarness(bridge)
+                response = PLUGIN_CLASS._set_text(
+                    harness,
+                    FakeSender(),
+                    {"target": {"dimension": "Overworld", "x": 1, "y": 2, "z": 3}},
+                    side="front",
+                    lines=["safe", "", "", ""],
+                    **keyword,
+                )
+                self.assertEqual(bridge.set_text_calls, [])
+                self.assertEqual(response["status"], "unsupported")
+                self.assertFalse(response["mutation_attempted"])
+                self.assertIn(field, response["message"])
 
     def test_live_snapshot_binding_exports_diagnostics(self) -> None:
         source = (ROOT / "src" / "live_python_bindings.cpp").read_text(encoding="utf-8")
@@ -269,6 +524,291 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         ):
             self.assertIn(f'out["{field}"]', source)
         self.assertIn("signActorStatusName(snapshot.actor_status)", source)
+
+    def test_live_bridge_exports_guarded_blank_place_and_safe_editor_flags(self) -> None:
+        source = (ROOT / "src" / "live_python_bindings.cpp").read_text(encoding="utf-8")
+        self.assertIn('module.def("place"', source)
+        self.assertIn('py::arg("expected_revision") = py::none()', source)
+        self.assertIn('py::arg("acquire_lock") = false', source)
+        self.assertIn('py::arg("bypass_wax") = false', source)
+
+    def test_structural_mutations_are_executable_hash_gated_inside_adapter(self) -> None:
+        source = (ROOT / "src" / "experimental_bds_26_30_adapter.cpp").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("structural Sign mutation requires the exact BDS executable", source)
+        self.assertGreaterEqual(source.count("return binaryIdentityMismatch();"), 4)
+        self.assertIn("result.capture = structural_mutation_gate", source)
+        self.assertIn("force placement is disabled", source)
+        self.assertIn("experimental removal requires a nonzero expected revision", source)
+
+    def test_one_case_runner_places_and_verifies_text_without_advanced_calls(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        config["materials"] = ["oak"]
+        config["kinds"] = ["standing"]
+        config["cleanup_after_run"] = True
+        dimension = FakeMatrixDimension()
+        bridge = FakeMatrixBridge(dimension)
+        report = AUTOMATION_MODULE.new_run_report(
+            plugin_version="0.2.0a5",
+            platform="linux-x64",
+            operator="tester",
+            dimension="Overworld",
+            anchor={"x": 10, "y": 64, "z": 10},
+            config=config,
+            bridge_status=bridge.status(None),
+        )
+        report["state"] = "running"
+        report["cursor"] = {"case_index": 0, "phase": "support"}
+        with tempfile.TemporaryDirectory() as temporary:
+            plugin = object.__new__(PLUGIN_CLASS)
+            plugin.server = FakeMatrixServer(dimension)
+            plugin.logger = FakeMatrixLogger()
+            plugin.data_folder = temporary
+            plugin.matrix_task = None
+            plugin.matrix_cancel_requested = False
+            context = {
+                "mode": "run",
+                "report": report,
+                "bridge": bridge,
+                "sender_name": "tester",
+            }
+            plugin.matrix_context = context
+            plugin._schedule_matrix = lambda delay: None
+            for _ in range(40):
+                if plugin.matrix_context is None:
+                    break
+                plugin._matrix_run_tick(context)
+            else:
+                self.fail(f"runner did not finish: {report['cursor']}")
+
+        self.assertEqual(report["state"], "completed")
+        self.assertEqual(report["outcome"], "supported_scope_passed")
+        self.assertEqual(report["cases"][0]["status"], "passed")
+        self.assertEqual(bridge.advanced_calls, 0)
+        self.assertEqual(report["coverage"]["standing_sign_place"]["status"], "passed")
+        self.assertEqual(report["coverage"]["front_text_read_write"]["status"], "passed")
+        self.assertEqual(report["coverage"]["back_text_read_write"]["status"], "passed")
+        self.assertEqual(report["coverage"]["individual_line_edit"]["status"], "passed")
+        self.assertEqual(report["coverage"]["wax"]["status"], "unsupported")
+        self.assertEqual(report["cleanup"]["state"], "completed")
+        self.assertTrue(report["cleanup"]["completed_at_utc"])
+        case = report["cases"][0]
+        self.assertEqual(
+            dimension.get_block_at(**case["sign"]).type,
+            "minecraft:air",
+        )
+        self.assertEqual(
+            dimension.get_block_at(**case["support"]).type,
+            "minecraft:air",
+        )
+
+    def test_placement_revision_mismatch_never_claims_ownership(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        config["materials"] = ["oak"]
+        config["kinds"] = ["standing"]
+        dimension = FakeMatrixDimension()
+        bridge = FakeMatrixBridge(dimension)
+        report = AUTOMATION_MODULE.new_run_report(
+            plugin_version="0.2.0a5",
+            platform="linux-x64",
+            operator="tester",
+            dimension="Overworld",
+            anchor={"x": 15, "y": 64, "z": 15},
+            config=config,
+            bridge_status=bridge.status(None),
+        )
+        case = report["cases"][0]
+        sign = case["sign"]
+        placed = bridge.place(
+            None,
+            case["dimension"],
+            sign["x"],
+            sign["y"],
+            sign["z"],
+            case["identifier"],
+            case["states"],
+        )
+        case["placement_revision"] = placed["revision"]
+        bridge.snapshots[(sign["x"], sign["y"], sign["z"])]["revision"] += 1
+        with tempfile.TemporaryDirectory() as temporary:
+            plugin = object.__new__(PLUGIN_CLASS)
+            plugin.server = FakeMatrixServer(dimension)
+            plugin.data_folder = temporary
+            plugin._schedule_matrix = lambda delay: None
+            context = {
+                "mode": "run",
+                "report": report,
+                "bridge": bridge,
+                "plugin": plugin,
+            }
+            plugin._matrix_phase_capture_place(context, 0, case)
+        self.assertFalse(case["owned_sign"])
+        self.assertEqual(case["status"], "failed")
+
+    def test_cleanup_preserves_support_when_capture_cannot_prove_air(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        config["materials"] = ["oak"]
+        config["kinds"] = ["standing"]
+        dimension = FakeMatrixDimension()
+        bridge = FakeMatrixBridge(dimension)
+        report = AUTOMATION_MODULE.new_run_report(
+            plugin_version="0.2.0a5",
+            platform="linux-x64",
+            operator="tester",
+            dimension="Overworld",
+            anchor={"x": 18, "y": 64, "z": 18},
+            config=config,
+            bridge_status=bridge.status(None),
+        )
+        case = report["cases"][0]
+        sign = case["sign"]
+        support = case["support"]
+        dimension.get_block_at(support["x"], support["y"], support["z"]).type = config[
+            "support_block"
+        ]
+        placed = bridge.place(
+            None,
+            case["dimension"],
+            sign["x"],
+            sign["y"],
+            sign["z"],
+            case["identifier"],
+            case["states"],
+        )
+        case["owned_support"] = True
+        case["owned_sign"] = True
+        case["expected_revision"] = placed["revision"]
+        del bridge.snapshots[(sign["x"], sign["y"], sign["z"])]
+        dimension.get_block_at(sign["x"], sign["y"], sign["z"]).type = (
+            "minecraft:diamond_block"
+        )
+        plugin = object.__new__(PLUGIN_CLASS)
+        plugin.server = FakeMatrixServer(dimension)
+        context = {"mode": "cleanup", "report": report, "bridge": bridge, "plugin": plugin}
+
+        self.assertFalse(plugin._matrix_cleanup_case(context, case, standalone=True))
+        self.assertEqual(
+            dimension.get_block_at(support["x"], support["y"], support["z"]).type,
+            config["support_block"],
+        )
+        self.assertTrue(case["owned_support"])
+
+    def test_cleanup_report_validation_rejects_a_tampered_plan(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        dimension = FakeMatrixDimension()
+        server = FakeMatrixServer(dimension)
+        report = AUTOMATION_MODULE.new_run_report(
+            plugin_version="0.2.0a5",
+            platform=PLUGIN_CLASS._platform(),
+            operator="tester",
+            dimension="Overworld",
+            anchor={"x": 30, "y": 64, "z": 30},
+            config=config,
+            bridge_status={},
+        )
+        report["state"] = "completed"
+        report["world_name"] = server.level.name
+        report["world_seed"] = str(server.level.seed)
+        report["server_executable_sha256"] = "a" * 64
+        report["plugin_sha256"] = "b" * 64
+        report["plugin_discovery"] = {"status": "selected"}
+        sender = FakeSender()
+        sender.location = type(
+            "Location",
+            (),
+            {"dimension": type("Dimension", (), {"name": "Overworld"})()},
+        )()
+        with tempfile.TemporaryDirectory() as temporary:
+            plugin = object.__new__(PLUGIN_CLASS)
+            plugin.server = server
+            plugin.data_folder = temporary
+            plugin._binary_evidence = lambda: {
+                "server_executable_sha256": "a" * 64,
+                "plugin_sha256": "b" * 64,
+                "plugin_discovery": {"status": "selected"},
+            }
+            AUTOMATION_MODULE.install_default_config(Path(temporary))
+            self.assertEqual(plugin._validate_cleanup_report(sender, report), "")
+            report["cases"][0]["sign"]["x"] += 1
+            self.assertIn(
+                "reconstructed plan",
+                plugin._validate_cleanup_report(sender, report),
+            )
+
+    def test_cleanup_removes_matching_owned_cells_and_preserves_revision_conflicts(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        config["materials"] = ["oak"]
+        config["kinds"] = ["standing"]
+        dimension = FakeMatrixDimension()
+        bridge = FakeMatrixBridge(dimension)
+        report = AUTOMATION_MODULE.new_run_report(
+            plugin_version="0.2.0a5",
+            platform="linux-x64",
+            operator="tester",
+            dimension="Overworld",
+            anchor={"x": 20, "y": 64, "z": 20},
+            config=config,
+            bridge_status=bridge.status(None),
+        )
+        case = report["cases"][0]
+        support = case["support"]
+        dimension.get_block_at(support["x"], support["y"], support["z"]).type = config[
+            "support_block"
+        ]
+        case["owned_support"] = True
+        sign = case["sign"]
+        placed = bridge.place(
+            None,
+            case["dimension"],
+            sign["x"],
+            sign["y"],
+            sign["z"],
+            case["identifier"],
+            case["states"],
+        )
+        case["owned_sign"] = True
+        case["expected_revision"] = placed["revision"]
+        report["cleanup"]["state"] = "running"
+        plugin = object.__new__(PLUGIN_CLASS)
+        plugin.server = FakeMatrixServer(dimension)
+        plugin.logger = FakeMatrixLogger()
+        context = {"mode": "cleanup", "report": report, "bridge": bridge, "plugin": plugin}
+
+        self.assertTrue(plugin._matrix_cleanup_case(context, case, standalone=True))
+        self.assertEqual(
+            dimension.get_block_at(sign["x"], sign["y"], sign["z"]).type,
+            "minecraft:air",
+        )
+        self.assertEqual(
+            dimension.get_block_at(support["x"], support["y"], support["z"]).type,
+            "minecraft:air",
+        )
+
+        # Recreate the owned cells, then simulate an outside edit by changing
+        # the revision. Cleanup must preserve both cells and record a conflict.
+        dimension.get_block_at(support["x"], support["y"], support["z"]).type = config[
+            "support_block"
+        ]
+        case["owned_support"] = True
+        placed = bridge.place(
+            None,
+            case["dimension"],
+            sign["x"],
+            sign["y"],
+            sign["z"],
+            case["identifier"],
+            case["states"],
+        )
+        case["owned_sign"] = True
+        case["expected_revision"] = placed["revision"]
+        bridge.snapshots[(sign["x"], sign["y"], sign["z"])]["revision"] += 1
+        self.assertFalse(plugin._matrix_cleanup_case(context, case, standalone=True))
+        self.assertNotEqual(
+            dimension.get_block_at(sign["x"], sign["y"], sign["z"]).type,
+            "minecraft:air",
+        )
+        self.assertTrue(report["cleanup"]["conflicts"])
 
 
 if __name__ == "__main__":

@@ -23,8 +23,12 @@ EXPECTED_ENTRY = "sign-tester"
 EXPECTED_TARGET = "endstone_sign_tester:SignApiTesterPlugin"
 EXPECTED_COMMANDS = {"signprobe"}
 EXPECTED_DEPENDENCIES = ["sign_api"]
-EXPECTED_VERSION = "0.2.0a4"
+EXPECTED_VERSION = "0.2.0a5"
 EXPECTED_BRIDGE = "_endstone_sign_live"
+EXPECTED_TESTER_FILES = {
+    "endstone_sign_tester/automation.py",
+    "endstone_sign_tester/default-config.toml",
+}
 EXPECTED_RUNTIME_DEPENDENCIES = ["endstone==0.11.6"]
 EXPECTED_API_MODULES = {
     "endstone_sign/__init__.py",
@@ -71,6 +75,7 @@ def verify_installed_runtime(wheel: Path) -> None:
         smoke = f"""
 import copy
 import importlib
+from importlib.resources import as_file, files
 from pathlib import Path
 import sys
 sys.path.insert(0, {json.dumps(str(runtime_site_packages))})
@@ -82,13 +87,20 @@ assert api.__version__ == {EXPECTED_VERSION!r}
 assert api.__service_name__ == "endstone:sign:v2"
 plugin_class = package.SignApiTesterPlugin
 assert plugin_class.api_version == "0.11"
+assert plugin_class.version == {EXPECTED_VERSION!r}
 assert set(plugin_class.commands) == {{"signprobe"}}
 assert plugin_class.depend == ["sign_api"]
 _build_commands(copy.deepcopy(plugin_class.commands))
 _build_permissions(copy.deepcopy(plugin_class.permissions))
 plugin_class()
+automation = importlib.import_module("endstone_sign_tester.automation")
+with as_file(files(package).joinpath("default-config.toml")) as config_path:
+    config = automation.load_config(config_path)
+cases = automation.build_cases(config, "Overworld", {{"x": 0, "y": 64, "z": 0}})
+assert len(cases) == 48
+assert len({{case["id"] for case in cases}}) == 48
 bridge = importlib.import_module("endstone_sign_tester._endstone_sign_live")
-expected = {{"available", "status", "capture", "set_text", "remove", "open_editor"}}
+expected = {{"available", "status", "capture", "place", "set_text", "remove", "open_editor"}}
 assert expected <= set(dir(bridge)), sorted(expected - set(dir(bridge)))
 assert bridge.__version__ == api.__version__
 bridge_path = Path(bridge.__file__).resolve()
@@ -194,6 +206,11 @@ def verify(wheel: Path, *, structure_only: bool = False) -> None:
         missing_api = EXPECTED_API_MODULES.difference(names)
         if missing_api:
             raise AssertionError(f"wheel is missing vendored API modules: {sorted(missing_api)}")
+        missing_tester = EXPECTED_TESTER_FILES.difference(names)
+        if missing_tester:
+            raise AssertionError(
+                f"wheel is missing automated tester files: {sorted(missing_tester)}"
+            )
         for package in ("endstone_sign_tester/", "endstone_sign/"):
             if not any(name.startswith(package) for name in names):
                 raise AssertionError(f"wheel is missing package {package}")
@@ -209,6 +226,8 @@ def verify(wheel: Path, *, structure_only: bool = False) -> None:
             raise AssertionError(f"{EXPECTED_TARGET} is not an Endstone Plugin")
         if plugin_class.api_version != "0.11":
             raise AssertionError(f"unexpected API version: {plugin_class.api_version}")
+        if plugin_class.version != EXPECTED_VERSION:
+            raise AssertionError(f"unexpected plugin version: {plugin_class.version}")
         if set(plugin_class.commands) != EXPECTED_COMMANDS:
             raise AssertionError(f"unexpected commands: {set(plugin_class.commands)}")
         if plugin_class.depend != EXPECTED_DEPENDENCIES:
@@ -216,6 +235,17 @@ def verify(wheel: Path, *, structure_only: bool = False) -> None:
         _build_commands(copy.deepcopy(plugin_class.commands))
         _build_permissions(copy.deepcopy(plugin_class.permissions))
         plugin_class()
+        from importlib.resources import as_file, files
+
+        package = importlib.import_module("endstone_sign_tester")
+        automation = importlib.import_module("endstone_sign_tester.automation")
+        with as_file(files(package).joinpath("default-config.toml")) as config_path:
+            config = automation.load_config(config_path)
+        cases = automation.build_cases(
+            config, "Overworld", {"x": 0, "y": 64, "z": 0}
+        )
+        if len(cases) != 48 or len({case["id"] for case in cases}) != 48:
+            raise AssertionError("packaged default config did not produce 48 unique cases")
     else:
         verify_installed_runtime(wheel)
     print(f"verified {wheel.name}: {EXPECTED_ENTRY}, commands={sorted(EXPECTED_COMMANDS)}")

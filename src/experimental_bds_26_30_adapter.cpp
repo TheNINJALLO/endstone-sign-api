@@ -541,6 +541,15 @@ SignApplyResult runtimeMismatch() {
     };
 }
 
+SignApplyResult binaryIdentityMismatch(const std::uint64_t revision = 0) {
+    return {
+        SignApplyStatus::BinaryIdentityMismatch,
+        "structural Sign mutation requires the exact BDS executable SHA-256 "
+        "selected by the experimental manifest",
+        revision,
+    };
+}
+
 SignApplyResult nbtUnsupported(const std::uint64_t revision) {
     return {
         SignApplyStatus::Unsupported,
@@ -578,13 +587,15 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
 
     [[nodiscard]] SignCapabilities capabilities() const noexcept override {
         SignCapabilities result;
-        result.capture = true;
-        result.place = true;   // Blank signs only.
-        result.remove = true;
-        result.replace = true;
-        result.open_editor = true; // UI dispatch; editor locking remains false.
-        result.api_edit_events = true;
-        result.client_updates = true;
+        const bool structural_mutation_gate =
+            exact_runtime_ && text_bridge_.executableIdentityMatch();
+        result.capture = structural_mutation_gate;
+        result.place = structural_mutation_gate;   // Blank signs only.
+        result.remove = structural_mutation_gate;  // No item drop.
+        result.replace = false; // Pending hosted rollback and replacement validation.
+        result.open_editor = structural_mutation_gate; // UI dispatch only.
+        result.api_edit_events = structural_mutation_gate;
+        result.client_updates = structural_mutation_gate;
         result.exact_build_match = exact_runtime_;
 
         // This deliberately advertises only the exact, readback-checked subset.
@@ -604,7 +615,8 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
     }
 
     [[nodiscard]] std::optional<SignSnapshot> capture(const SignLocation &location) override {
-        if (!exact_runtime_ || !server_.isPrimaryThread())
+        if (!exact_runtime_ || !text_bridge_.executableIdentityMatch() ||
+            !server_.isPrimaryThread())
             return std::nullopt;
         try {
             auto access = locatePublicBlock(server_, location);
@@ -651,6 +663,8 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
     SignApplyResult apply(const SignPatch &patch, const bool force) override {
         if (!exact_runtime_)
             return runtimeMismatch();
+        if (!text_bridge_.executableIdentityMatch())
+            return binaryIdentityMismatch();
         if (!server_.isPrimaryThread()) {
             return {
                 SignApplyStatus::AdapterError,
@@ -662,7 +676,14 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(patch.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
-        if (patch.expected_revision && !force && *patch.expected_revision != current->revision) {
+        if (force) {
+            return {
+                SignApplyStatus::Unsupported,
+                "force mutation is disabled in the experimental live adapter",
+                current->revision,
+            };
+        }
+        if (patch.expected_revision && *patch.expected_revision != current->revision) {
             return {
                 SignApplyStatus::Conflict,
                 "sign revision changed",
@@ -682,6 +703,14 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             return {
                 SignApplyStatus::Unsupported,
                 "non-persistent live sign writes are not available",
+                current->revision,
+            };
+        }
+        if (requestsStructuralChange(patch)) {
+            return {
+                SignApplyStatus::Unsupported,
+                "structural sign replacement is disabled until NBT-safe rollback and "
+                "hosted postcondition evidence are available",
                 current->revision,
             };
         }
@@ -1004,6 +1033,8 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
     SignApplyResult place(const SignPlaceRequest &request, const bool force) override {
         if (!exact_runtime_)
             return runtimeMismatch();
+        if (!text_bridge_.executableIdentityMatch())
+            return binaryIdentityMismatch();
         if (!server_.isPrimaryThread()) {
             return {
                 SignApplyStatus::AdapterError,
@@ -1024,6 +1055,14 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             return {
                 SignApplyStatus::Unsupported,
                 "non-persistent sign placement is not available",
+                0,
+            };
+        }
+        if (force || request.replace_policy == SignReplacePolicy::Force) {
+            return {
+                SignApplyStatus::Unsupported,
+                "the experimental live adapter permits blank placement into air only; "
+                "force placement is disabled",
                 0,
             };
         }
@@ -1052,7 +1091,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             }
 
             const bool is_air = access->data->getType() == "minecraft:air";
-            const bool replaces = force || request.replace_policy == SignReplacePolicy::Force;
+            const bool replaces = request.replace_policy == SignReplacePolicy::Force;
             if (!is_air && !replaces) {
                 const auto message =
                     request.replace_policy == SignReplacePolicy::ReplaceableOnly
@@ -1073,30 +1112,74 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             }
             access->block->setData(*replacement, false);
 
-            auto native =
-                locateNativeSignActor(server_, request.location, &text_bridge_);
-            if (!native.access) {
-                return {
-                    SignApplyStatus::AdapterError,
-                    "sign block was placed but its vanilla sign actor was not "
-                    "available",
-                    0,
-                };
-            }
-            signalActorChanged(*native.access);
-            auto updated = capture(request.location);
-            if (!updated) {
-                return {
-                    SignApplyStatus::AdapterError,
-                    "sign block was placed but structural readback failed",
-                    0,
-                };
-            }
-            return {
-                SignApplyStatus::Applied,
-                "placed a blank sign through the Endstone v0.11.6 block boundary",
-                updated->revision,
+            const auto rollback = [&access]() noexcept {
+                try {
+                    access->block->setData(*access->data, false);
+                    auto restored = access->block->getData();
+                    return restored && restored->getType() == access->data->getType() &&
+                           fromEndstoneStates(restored->getBlockStates()) ==
+                               fromEndstoneStates(access->data->getBlockStates());
+                } catch (...) {
+                    return false;
+                }
             };
+            const auto fail_after_write =
+                [&rollback, before_revision](std::string message) {
+                    if (!rollback()) {
+                        return SignApplyResult{
+                            SignApplyStatus::RollbackFailed,
+                            std::move(message) +
+                                "; original block data could not be restored and verified",
+                            before_revision,
+                        };
+                    }
+                    return SignApplyResult{
+                        SignApplyStatus::AdapterError,
+                        std::move(message) +
+                            "; original block data was restored and verified",
+                        before_revision,
+                    };
+                };
+
+            try {
+                auto native =
+                    locateNativeSignActor(server_, request.location, &text_bridge_);
+                if (!native.access) {
+                    return fail_after_write(
+                        "sign block was placed but its vanilla sign actor was not "
+                        "available");
+                }
+                signalActorChanged(*native.access);
+                auto updated = capture(request.location);
+                if (!updated) {
+                    return fail_after_write(
+                        "sign block was placed but structural readback failed");
+                }
+                const bool states_match = std::ranges::all_of(
+                    request.states, [&updated](const auto &entry) {
+                        const auto actual = updated->states.find(entry.first);
+                        return actual != updated->states.end() &&
+                               actual->second == entry.second;
+                    });
+                if (updated->block_identifier != request.block_identifier ||
+                    !states_match) {
+                    return fail_after_write(
+                        "sign block was placed but identifier/state readback did not "
+                        "match the request");
+                }
+                return {
+                    SignApplyStatus::Applied,
+                    "placed a blank sign through the Endstone v0.11.6 block boundary",
+                    updated->revision,
+                };
+            } catch (const std::exception &error) {
+                return fail_after_write(
+                    std::string("sign placement failed after the block write: ") +
+                    error.what());
+            } catch (...) {
+                return fail_after_write(
+                    "sign placement failed after the block write with an unknown error");
+            }
         } catch (const std::invalid_argument &error) {
             return {SignApplyStatus::InvalidPatch, error.what(), 0};
         } catch (const std::exception &error) {
@@ -1107,6 +1190,8 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
     SignApplyResult remove(const SignRemoveRequest &request, const bool force) override {
         if (!exact_runtime_)
             return runtimeMismatch();
+        if (!text_bridge_.executableIdentityMatch())
+            return binaryIdentityMismatch();
         if (!server_.isPrimaryThread()) {
             return {
                 SignApplyStatus::AdapterError,
@@ -1117,8 +1202,14 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(request.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
-        if (request.expected_revision && !force &&
-            *request.expected_revision != current->revision) {
+        if (force || !request.expected_revision || *request.expected_revision == 0) {
+            return {
+                SignApplyStatus::Unsupported,
+                "experimental removal requires a nonzero expected revision and force=false",
+                current->revision,
+            };
+        }
+        if (*request.expected_revision != current->revision) {
             return {
                 SignApplyStatus::Conflict,
                 "sign revision changed",
@@ -1216,6 +1307,8 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                                const SignOpenEditorRequest &request) override {
         if (!exact_runtime_)
             return runtimeMismatch();
+        if (!text_bridge_.executableIdentityMatch())
+            return binaryIdentityMismatch();
         if (!server_.isPrimaryThread()) {
             return {
                 SignApplyStatus::AdapterError,

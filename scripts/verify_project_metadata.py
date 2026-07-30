@@ -27,6 +27,12 @@ tester_pyproject = text("examples/python/sign_api_tester_plugin/pyproject.toml")
 tester_plugin = text(
     "examples/python/sign_api_tester_plugin/src/endstone_sign_tester/plugin.py"
 )
+tester_automation = text(
+    "examples/python/sign_api_tester_plugin/src/endstone_sign_tester/automation.py"
+)
+tester_default_config = text(
+    "examples/python/sign_api_tester_plugin/src/endstone_sign_tester/default-config.toml"
+)
 live_bindings = text("src/live_python_bindings.cpp")
 readme = text("README.md")
 workflow = text(".github/workflows/ci.yml")
@@ -37,7 +43,7 @@ version_header = text("include/endstone_sign/version.h")
 
 release = source.get("version")
 expect(source.get("name") == "endstone-sign-api", "SOURCE_RELEASE name")
-expect(release == "0.2.0-alpha.4", "SOURCE_RELEASE version")
+expect(release == "0.2.0-alpha.5", "SOURCE_RELEASE version")
 expect(source.get("service") == "endstone:sign:v2", "SOURCE_RELEASE service")
 expect(source.get("service_abi") == 2, "SOURCE_RELEASE service ABI")
 expect(source.get("official_bds_packages") == ["1.26.33.1"], "exact official BDS package")
@@ -49,18 +55,25 @@ expect(bool(match) and match.group(1) == "0.2.0", "CMake project version")
 expect('set(ENDSTONE_BDS_BUILD "1.26.33"' in cmake, "CMake BDS runtime target")
 expect('set(ENDSTONE_BDS_PACKAGE "1.26.33.1"' in cmake, "CMake BDS package target")
 expect('GIT_TAG v0.11.6' in cmake, "CMake Endstone tag")
-expect('version = "0.2.0a4"' in pyproject, "Python project version")
-expect('__version__ = "0.2.0a4"' in init, "Python package version")
-expect('version = "0.2.0a4"' in tester_pyproject, "tester wheel version")
-expect('version = "0.2.0a4"' in tester_plugin, "tester plugin version")
-expect('module.attr("__version__") = "0.2.0a4"' in live_bindings,
+expect('version = "0.2.0a5"' in pyproject, "Python project version")
+expect('__version__ = "0.2.0a5"' in init, "Python package version")
+expect('version = "0.2.0a5"' in tester_pyproject, "tester wheel version")
+expect('version = "0.2.0a5"' in tester_plugin, "tester plugin version")
+expect('module.attr("__version__") = "0.2.0a5"' in live_bindings,
        "live bridge version")
+expect('module.def("place"' in live_bindings, "live bridge blank placement binding")
+expect('"default-config.toml"' in tester_pyproject, "tester config package data")
+expect('PROBE_COVERAGE' in tester_automation, "automated matrix probe coverage")
+expect('materials = [' in tester_default_config and 'kinds = [' in tester_default_config,
+       "default automated matrix material/form configuration")
+expect('/signprobe (run)<action: SignProbeRunAction>' in tester_plugin,
+       "automated matrix command")
 expect('__service_name__ = "endstone:sign:v2"' in init, "Python service name")
 expect('__service_abi__ = 2' in init, "Python service ABI")
-expect('ReleaseVersion = "0.2.0-alpha.4"' in version_header, "C++ release version")
+expect('ReleaseVersion = "0.2.0-alpha.5"' in version_header, "C++ release version")
 expect('ServiceName = "endstone:sign:v2"' in version_header, "C++ service name")
 expect('ServiceAbiVersion = 2' in version_header, "C++ service ABI")
-expect("v0.2.0-alpha.4" in readme, "README release tag")
+expect("v0.2.0-alpha.5" in readme, "README release tag")
 expect("partial experimental" in readme, "README partial native registration warning")
 
 expect(compat.get("project") == "endstone-sign-api", "compatibility project")
@@ -147,8 +160,8 @@ for required in (
 ):
     expect(required in workflow, f"workflow contains {required}")
 expect("symbol-gate-pending" not in workflow, "workflow has no stale prototype gate")
-expect("RELEASE_VERSION: 0.2.0-alpha.4" in workflow, "CI release version")
-expect("RELEASE_VERSION: 0.2.0-alpha.4" in release_workflow,
+expect("RELEASE_VERSION: 0.2.0-alpha.5" in workflow, "CI release version")
+expect("RELEASE_VERSION: 0.2.0-alpha.5" in release_workflow,
        "tag workflow release version")
 
 if failures:

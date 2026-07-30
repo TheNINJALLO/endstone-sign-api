@@ -1,5 +1,6 @@
 #include "endstone_sign/bds_26_30_adapter.h"
 #include "endstone_sign/live_service.h"
+#include "endstone_sign/live_probe_service.h"
 
 #include <endstone/endstone.hpp>
 #include <endstone/plugin/service_manager.h>
@@ -48,9 +49,16 @@ public:
         }
 
         provider_ = std::make_shared<endstone_sign::LiveSignServiceProvider>(service_);
+        probe_provider_ =
+            std::make_shared<endstone_sign::LiveSignProbeServiceProvider>(service_);
         getServer().getServiceManager().registerService(
             std::string(endstone_sign::SignServiceName),
             provider_,
+            *this,
+            endstone::ServicePriority::Normal);
+        getServer().getServiceManager().registerService(
+            std::string(endstone_sign::SignProbeServiceName),
+            probe_provider_,
             *this,
             endstone::ServicePriority::Normal);
         getLogger().info(
@@ -62,6 +70,7 @@ public:
 
     void onDisable() override {
         getServer().getServiceManager().unregisterAll(*this);
+        probe_provider_.reset();
         provider_.reset();
         service_.reset();
         adapter_.reset();
@@ -71,6 +80,7 @@ private:
     std::shared_ptr<endstone_sign::ISignAdapter> adapter_;
     std::shared_ptr<endstone_sign::SignService> service_;
     std::shared_ptr<endstone_sign::LiveSignServiceProvider> provider_;
+    std::shared_ptr<endstone_sign::LiveSignProbeServiceProvider> probe_provider_;
 };
 
 ENDSTONE_PLUGIN("sign_api", ENDSTONE_SIGN_VERSION, SignApiPlugin) {

@@ -285,6 +285,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
 
     set(SIGN_PLUGIN_SOURCES
         src/plugin.cpp
+        src/live_probe_service.cpp
         src/sign_native_runtime_bridge.cpp
     )
     if(ENDSTONE_SIGN_BUILD_NATIVE_2630)
@@ -441,6 +442,14 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     )
     install(DIRECTORY include/endstone_sign DESTINATION include COMPONENT sign_package)
     install(DIRECTORY docs native DESTINATION . COMPONENT sign_package
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+    )
+    install(DIRECTORY tools DESTINATION . COMPONENT sign_package
+        PATTERN "__pycache__" EXCLUDE
+        PATTERN "*.pyc" EXCLUDE
+    )
+    install(DIRECTORY examples DESTINATION . COMPONENT sign_package
         PATTERN "__pycache__" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
     )

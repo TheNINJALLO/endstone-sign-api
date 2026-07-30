@@ -5,7 +5,7 @@
 
 namespace endstone_sign {
 
-inline constexpr std::string_view ReleaseVersion = "0.2.0-alpha.6";
+inline constexpr std::string_view ReleaseVersion = "0.2.0-alpha.7";
 inline constexpr std::string_view ServiceName = "endstone:sign:v2";
 inline constexpr std::uint32_t ServiceAbiVersion = 2;
 inline constexpr std::string_view TargetBdsPackage = "1.26.33.1";

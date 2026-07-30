@@ -48,6 +48,7 @@ PROBE_NAMES = (
 HASH_FIELDS = (
     "server_executable_sha256",
     "plugin_sha256",
+    "tester_wheel_sha256",
     "log_sha256",
     "world_backup_sha256",
 )
@@ -84,6 +85,7 @@ def new_report(
         "endstone_version": ENDSTONE_VERSION,
         "server_executable_sha256": "",
         "plugin_sha256": "",
+        "tester_wheel_sha256": "",
         "world_seed": "",
         "started_at_utc": utc_now(),
         "completed_at_utc": "",

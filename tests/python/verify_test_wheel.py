@@ -23,7 +23,7 @@ EXPECTED_ENTRY = "sign-tester"
 EXPECTED_TARGET = "endstone_sign_tester:SignApiTesterPlugin"
 EXPECTED_COMMANDS = {"signprobe"}
 EXPECTED_DEPENDENCIES = ["sign_api"]
-EXPECTED_VERSION = "0.2.0a6"
+EXPECTED_VERSION = "0.2.0a7"
 EXPECTED_BRIDGE = "_endstone_sign_live"
 EXPECTED_TESTER_FILES = {
     "endstone_sign_tester/automation.py",
@@ -100,7 +100,12 @@ cases = automation.build_cases(config, "Overworld", {{"x": 0, "y": 64, "z": 0}})
 assert len(cases) == 48
 assert len({{case["id"] for case in cases}}) == 48
 bridge = importlib.import_module("endstone_sign_tester._endstone_sign_live")
-expected = {{"available", "status", "capture", "place", "set_text", "remove", "open_editor"}}
+expected = {{
+    "available", "status", "capture", "place", "set_text",
+    "set_extended_text", "set_editor_lock", "replace", "clone", "move",
+    "probe_atomic_rejection", "probe_api_event_cancellation", "remove",
+    "open_editor",
+}}
 assert expected <= set(dir(bridge)), sorted(expected - set(dir(bridge)))
 assert bridge.__version__ == api.__version__
 bridge_path = Path(bridge.__file__).resolve()

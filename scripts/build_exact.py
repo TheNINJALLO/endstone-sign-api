@@ -132,6 +132,14 @@ def main() -> int:
     parser.add_argument("--bds", required=True, choices=sorted(SUPPORTED_BDS))
     parser.add_argument("--platform", required=True, choices=sorted(SUPPORTED_PLATFORMS))
     parser.add_argument("--parallel", type=int, default=2)
+    parser.add_argument(
+        "--server-executable",
+        type=Path,
+        help=(
+            "optional local exact bedrock_server path; enables live identifier "
+            "inventory verification without copying the executable"
+        ),
+    )
     args = parser.parse_args()
 
     if sys.implementation.name != "cpython" or sys.version_info[:2] != REQUIRED_PYTHON:
@@ -146,6 +154,17 @@ def main() -> int:
     if not 1 <= args.parallel <= 4:
         raise SystemExit("--parallel must be between 1 and 4")
     manifest = validate_manifest(args.platform)
+    env = os.environ.copy()
+
+    inventory_check = [
+        sys.executable,
+        str(ROOT / "scripts" / "verify_bds_sign_identifiers.py"),
+        "--platform",
+        args.platform,
+    ]
+    if args.server_executable is not None:
+        inventory_check += ["--server-executable", str(args.server_executable)]
+    run(inventory_check, env=env)
 
     build_dir = ROOT / "build-exact" / args.bds / args.platform
     conan_dir = build_dir / "conan"
@@ -162,7 +181,6 @@ def main() -> int:
     cmake = require("cmake")
     conan = require("conan")
     ninja = require("ninja", (r"C:\ProgramData\chocolatey\bin\ninja.exe",))
-    env = os.environ.copy()
     env["CMAKE_BUILD_PARALLEL_LEVEL"] = str(args.parallel)
     env["CONAN_HOME"] = str(conan_home)
 

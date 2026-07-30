@@ -45,7 +45,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a5"
+    version = "0.2.0a6"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -919,6 +919,78 @@ class SignApiTesterPlugin(Plugin):
         )
         return True
 
+    @staticmethod
+    def _matrix_descriptor_preflight(
+        server: Any, config: dict[str, Any], cases: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Resolve every exact block descriptor before the first world write.
+
+        Endstone translates descriptor errors safely when create_block_data is
+        invoked through its own Python binding.  The native Sign plugin cannot
+        safely receive an exception thrown by the separately linked Endstone
+        runtime, so no identifier/state pair may reach that boundary unless the
+        running server has already resolved it exactly here.
+        """
+
+        failures: list[dict[str, Any]] = []
+        try:
+            support = server.create_block_data(config["support_block"])
+            if support is None or str(support.type) != config["support_block"]:
+                failures.append(
+                    {
+                        "role": "support",
+                        "identifier": config["support_block"],
+                        "reason": "Endstone did not resolve the exact support block type",
+                    }
+                )
+        except Exception as error:
+            failures.append(
+                {
+                    "role": "support",
+                    "identifier": config["support_block"],
+                    "reason": str(error),
+                }
+            )
+
+        for case in cases:
+            identifier = str(case["identifier"])
+            requested_states = dict(case["states"])
+            try:
+                descriptor = server.create_block_data(identifier, requested_states)
+                if descriptor is None:
+                    raise ValueError("Endstone returned no block descriptor")
+                actual_type = str(descriptor.type)
+                actual_states = dict(descriptor.block_states)
+                mismatched_states = {
+                    key: {"expected": expected, "actual": actual_states.get(key)}
+                    for key, expected in requested_states.items()
+                    if key not in actual_states
+                    or type(actual_states[key]) is not type(expected)
+                    or actual_states[key] != expected
+                }
+                if actual_type != identifier or mismatched_states:
+                    failures.append(
+                        {
+                            "case_id": case["id"],
+                            "role": "sign",
+                            "identifier": identifier,
+                            "reason": "exact block descriptor readback mismatch",
+                            "actual_type": actual_type,
+                            "mismatched_states": mismatched_states,
+                        }
+                    )
+            except Exception as error:
+                failures.append(
+                    {
+                        "case_id": case["id"],
+                        "role": "sign",
+                        "identifier": identifier,
+                        "states": requested_states,
+                        "reason": str(error),
+                    }
+                )
+        return failures
+
     def _handle_run(self, sender: CommandSender, args: list[str]) -> bool:
         if len(args) != 4 or args[3].casefold() != "confirm":
             sender.send_message("Usage: /signprobe run <x> <y> <z> confirm")
@@ -1026,15 +1098,35 @@ class SignApiTesterPlugin(Plugin):
             sender.send_message(f"Matrix report: {path}")
             return True
 
+        descriptor_failures = self._matrix_descriptor_preflight(
+            self.server, config, report["cases"]
+        )
+        add_matrix_step(
+            report,
+            None,
+            operation="block_descriptor_preflight",
+            status="failed" if descriptor_failures else "passed",
+            response={"failures": descriptor_failures},
+            reason=(
+                "every exact support/sign identifier and state map resolved through "
+                "Endstone before mutation"
+                if not descriptor_failures
+                else "one or more block descriptors were rejected before mutation"
+            ),
+        )
+        if descriptor_failures:
+            finish_matrix_run(report, "failed")
+            path = save_run_report(Path(self.data_folder), report)
+            sender.send_message(
+                "Matrix stopped before mutation: "
+                f"{len(descriptor_failures)} block descriptor failure(s)."
+            )
+            sender.send_message(f"Matrix report: {path}")
+            return True
+
         conflicts: list[dict[str, Any]] = []
         try:
             dimension = self.server.level.get_dimension(dimension_name)
-            # Validate the support block before touching the world.
-            support_data = self.server.create_block_data(config["support_block"])
-            if support_data is None:
-                raise ValueError(
-                    f"Endstone rejected support block {config['support_block']!r}"
-                )
             for case in report["cases"]:
                 for role in ("sign", "support"):
                     location = case[role]
@@ -1418,6 +1510,12 @@ class SignApiTesterPlugin(Plugin):
             "place",
             "capture_place",
             "front",
+            "back",
+            "line_edit",
+            "color",
+            "glow",
+            "wax",
+            "unwax",
             "capture_front",
             "capture_back",
             "capture_line_edit",

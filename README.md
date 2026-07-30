@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.5`
+**Release:** `v0.2.0-alpha.6`
 
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
@@ -9,11 +9,17 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.5 also ships a deliberately partial native probe adapter and a configurable automated tester for a backed-up disposable server. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.6 also ships a deliberately partial native probe adapter and a configurable automated tester for a backed-up disposable server. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+
+Alpha.5 is superseded: its hosted Linux matrix passed the first 20 cases, then
+aborted at dark-oak standing placement because that release generated
+`minecraft:dark_oak_standing_sign`; Bedrock uses the legacy
+`minecraft:darkoak_standing_sign` spelling. Restore the disposable-world
+backup and replace both alpha.5 files before testing again.
 
 On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
 
-This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. Alpha.5 additionally requires the exact executable hash inside every structural mutation, so the Windows candidate is read-only until its independent binary and text boundaries are verified.
+This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. Alpha.6 additionally requires the exact executable hash inside every structural mutation, resolves all 49 support/sign descriptors before the first world write, and checks every block type through Endstone's registry before the native descriptor boundary. The Windows candidate is read-only until its independent binary and text boundaries are verified.
 
 The matching tester wheel can plan and run all 12 materials across all four
 forms with one command:

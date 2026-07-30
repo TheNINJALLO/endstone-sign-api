@@ -60,6 +60,99 @@ class SignTesterAutomationTests(unittest.TestCase):
                     automation.SAFE_TRANSFERRED_MESSAGE_BYTES,
                 )
 
+    def test_default_plan_uses_only_exact_canonical_bds_descriptors(self) -> None:
+        identifiers = {
+            "oak": (
+                "minecraft:standing_sign",
+                "minecraft:wall_sign",
+                "minecraft:oak_hanging_sign",
+            ),
+            "spruce": (
+                "minecraft:spruce_standing_sign",
+                "minecraft:spruce_wall_sign",
+                "minecraft:spruce_hanging_sign",
+            ),
+            "birch": (
+                "minecraft:birch_standing_sign",
+                "minecraft:birch_wall_sign",
+                "minecraft:birch_hanging_sign",
+            ),
+            "jungle": (
+                "minecraft:jungle_standing_sign",
+                "minecraft:jungle_wall_sign",
+                "minecraft:jungle_hanging_sign",
+            ),
+            "acacia": (
+                "minecraft:acacia_standing_sign",
+                "minecraft:acacia_wall_sign",
+                "minecraft:acacia_hanging_sign",
+            ),
+            "dark_oak": (
+                "minecraft:darkoak_standing_sign",
+                "minecraft:darkoak_wall_sign",
+                "minecraft:dark_oak_hanging_sign",
+            ),
+            "mangrove": (
+                "minecraft:mangrove_standing_sign",
+                "minecraft:mangrove_wall_sign",
+                "minecraft:mangrove_hanging_sign",
+            ),
+            "cherry": (
+                "minecraft:cherry_standing_sign",
+                "minecraft:cherry_wall_sign",
+                "minecraft:cherry_hanging_sign",
+            ),
+            "bamboo": (
+                "minecraft:bamboo_standing_sign",
+                "minecraft:bamboo_wall_sign",
+                "minecraft:bamboo_hanging_sign",
+            ),
+            "crimson": (
+                "minecraft:crimson_standing_sign",
+                "minecraft:crimson_wall_sign",
+                "minecraft:crimson_hanging_sign",
+            ),
+            "warped": (
+                "minecraft:warped_standing_sign",
+                "minecraft:warped_wall_sign",
+                "minecraft:warped_hanging_sign",
+            ),
+            "pale_oak": (
+                "minecraft:pale_oak_standing_sign",
+                "minecraft:pale_oak_wall_sign",
+                "minecraft:pale_oak_hanging_sign",
+            ),
+        }
+        expected = {
+            (material, kind): values[0 if kind == "standing" else 1 if kind == "wall" else 2]
+            for material, values in identifiers.items()
+            for kind in automation.KINDS
+        }
+        cases = automation.build_cases(
+            self.load_default(), "Overworld", {"x": 0, "y": 64, "z": 0}
+        )
+        self.assertEqual(set(identifiers), set(automation.MATERIALS))
+        self.assertEqual(
+            {(case["material"], case["kind"]): case["identifier"] for case in cases},
+            expected,
+        )
+        self.assertEqual(
+            automation.sign_identifier("dark_oak", "standing"),
+            "minecraft:darkoak_standing_sign",
+        )
+        self.assertEqual(
+            automation.sign_identifier("dark_oak", "wall"),
+            "minecraft:darkoak_wall_sign",
+        )
+        self.assertEqual(
+            automation.sign_identifier("dark_oak", "ceiling_hanging"),
+            "minecraft:dark_oak_hanging_sign",
+        )
+        self.assertNotIn(
+            "minecraft:dark_oak_standing_sign",
+            {case["identifier"] for case in cases},
+        )
+
     def test_every_activation_probe_has_an_explicit_automation_disposition(self) -> None:
         template = json.loads(
             (ROOT / "native" / "probes" / "STAGE_PROBE_TEMPLATE.json").read_text(
@@ -128,7 +221,7 @@ class SignTesterAutomationTests(unittest.TestCase):
     def test_run_report_path_rejects_traversal(self) -> None:
         config = self.load_default()
         report = automation.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -144,7 +237,7 @@ class SignTesterAutomationTests(unittest.TestCase):
     def test_skipped_advanced_steps_never_make_report_activation_eligible(self) -> None:
         config = self.load_default()
         report = automation.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -174,7 +267,7 @@ class SignTesterAutomationTests(unittest.TestCase):
             config_path = automation.install_default_config(data_folder)
             config = automation.load_config(config_path)
             report = automation.new_run_report(
-                plugin_version="0.2.0a5",
+                plugin_version="0.2.0a6",
                 platform="linux-x64",
                 operator="tester",
                 dimension="Overworld",

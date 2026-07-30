@@ -251,7 +251,7 @@ py::dict openEditor(endstone::Server &server, endstone::Player &player,
 
 PYBIND11_MODULE(_endstone_sign_live, module) {
     module.doc() = "Experimental live bridge to endstone:sign:v2";
-    module.attr("__version__") = "0.2.0a5";
+    module.attr("__version__") = "0.2.0a6";
     module.def("available", &endstone_sign::available, py::arg("server"));
     module.def("status", &endstone_sign::status, py::arg("server"));
     module.def("capture", &endstone_sign::capture, py::arg("server"),

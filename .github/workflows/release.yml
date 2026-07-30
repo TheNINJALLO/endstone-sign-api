@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.5
+  RELEASE_VERSION: 0.2.0-alpha.6
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -56,6 +56,7 @@ jobs:
         run: |
           set -euxo pipefail
           python scripts/verify_project_metadata.py
+          python scripts/verify_bds_sign_identifiers.py --platform linux-x64
           python tools/verify_fail_closed.py
           python - <<'PYTAG'
           import json
@@ -255,7 +256,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Experimental disposable-server matrix candidate for Endstone 0.11.6 / BDS 1.26.33. The tester runs a configurable 12-material x 4-form plan with blank placement, structural capture, short raw front/back text, per-line preservation, evidence journaling, cancellation, and ownership-aware cleanup. Every Linux mutation is exact-executable-hash gated. Advanced SignBlockActor NBT, client/manual checkpoints, complete native control, and Windows mutation remain unverified. Do not install on a production world.'
+          notes='Experimental disposable-server matrix candidate for Endstone 0.11.6 / BDS 1.26.33. Supersedes alpha.5, which aborted on an invalid dark-oak standing identifier after 20 successful cases. Alpha.6 uses the canonical legacy darkoak standing/wall IDs, resolves all 50 support/cleanup/sign descriptors before world mutation, enumerates only Endstone pre-populated registry entries before createBlockData, and verifies a 36-ID executable-bound inventory. The tester runs a configurable 12-material x 4-form plan with evidence journaling, cancellation, and ownership-aware cleanup. Advanced SignBlockActor NBT, client/manual checkpoints, complete native control, general cross-DSO exception hardening, and Windows mutation remain unverified. Restore a backup and use only a disposable world.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"

@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.2.0-alpha.6
+
+- Fixed the legacy Bedrock dark-oak standing/wall identifiers to
+  `minecraft:darkoak_standing_sign` and `minecraft:darkoak_wall_sign` while
+  retaining `minecraft:dark_oak_hanging_sign` for hanging signs. Portable and
+  tester classification now reject the invalid separated aliases.
+- Added exhaustive 12-material identifier coverage across standing, wall,
+  ceiling-hanging, and wall-hanging placement plans.
+- Added a pre-mutation tester gate that resolves the support block, cleanup air,
+  and every planned sign identifier/state descriptor through Endstone before
+  the first arena write. Any missing type, invalid state, or readback mismatch
+  stops the run and is recorded in its report.
+- Added a cache-only native registry enumeration before the experimental adapter enters
+  Endstone's `createBlockData` boundary. An absent block type now returns an
+  invalid-patch result without invoking either Endstone's terminating
+  `Registry<BlockType>::get` miss path or its throwing descriptor path.
+- Added an executable-bound inventory of all 36 canonical sign block IDs and
+  a privacy-safe streaming verifier. Exact builds always compare the portable
+  API and test-wheel generators; a locally supplied exact server executable
+  can additionally be hash-, size-, and identifier-scanned.
+- Made every matrix mutation intent a durable checkpoint so an interrupted or
+  crashed run records the exact phase that was in flight.
+- Supersedes alpha.5, whose hosted Linux run passed the first 20 cases but
+  aborted when case 21 generated the invalid dark-oak standing identifier.
+  Alpha.6 remains a disposable-world probe candidate; it does not claim that
+  the cross-DSO C++ exception-runtime boundary is generally hardened.
+
 ## 0.2.0-alpha.5
 
 - Added a one-command, tick-stepped disposable-world matrix:

@@ -62,6 +62,60 @@ std::optional<SignMaterial> materialFromPrefix(std::string_view prefix) noexcept
     return std::nullopt;
 }
 
+struct CanonicalSignIdentifier {
+    SignMaterial material;
+    SignKind kind;
+};
+
+std::optional<CanonicalSignIdentifier> parseCanonicalSignIdentifier(
+    const std::string &identifier) noexcept {
+    constexpr std::string_view Namespace = "minecraft:";
+    if (!identifier.starts_with(Namespace)) return std::nullopt;
+
+    std::string_view name(identifier);
+    name.remove_prefix(Namespace.size());
+    if (name == "standing_sign") {
+        return CanonicalSignIdentifier{SignMaterial::Oak, SignKind::Standing};
+    }
+    if (name == "wall_sign") {
+        return CanonicalSignIdentifier{SignMaterial::Oak, SignKind::Wall};
+    }
+    if (name == "darkoak_standing_sign") {
+        return CanonicalSignIdentifier{SignMaterial::DarkOak, SignKind::Standing};
+    }
+    if (name == "darkoak_wall_sign") {
+        return CanonicalSignIdentifier{SignMaterial::DarkOak, SignKind::Wall};
+    }
+
+    constexpr std::string_view HangingSuffix = "_hanging_sign";
+    if (name.ends_with(HangingSuffix)) {
+        name.remove_suffix(HangingSuffix.size());
+        if (const auto material = materialFromPrefix(name)) {
+            return CanonicalSignIdentifier{*material, SignKind::CeilingHanging};
+        }
+        return std::nullopt;
+    }
+
+    const auto parse_wood_sign = [&name](const std::string_view suffix,
+                                         const SignKind kind)
+        -> std::optional<CanonicalSignIdentifier> {
+        if (!name.ends_with(suffix)) return std::nullopt;
+        auto prefix = name;
+        prefix.remove_suffix(suffix.size());
+        const auto material = materialFromPrefix(prefix);
+        if (!material || *material == SignMaterial::Oak ||
+            *material == SignMaterial::DarkOak) {
+            return std::nullopt;
+        }
+        return CanonicalSignIdentifier{*material, kind};
+    };
+    if (const auto standing =
+            parse_wood_sign("_standing_sign", SignKind::Standing)) {
+        return standing;
+    }
+    return parse_wood_sign("_wall_sign", SignKind::Wall);
+}
+
 } // namespace
 
 std::span<const SignMaterial> allSignMaterials() noexcept { return Materials; }
@@ -73,13 +127,15 @@ std::string signBlockIdentifier(SignMaterial material, SignKind kind) {
     const auto material_name = std::string(signMaterialName(material));
     switch (kind) {
     case SignKind::Standing:
-        return material == SignMaterial::Oak
-                   ? "minecraft:standing_sign"
-                   : "minecraft:" + material_name + "_standing_sign";
+        if (material == SignMaterial::Oak) return "minecraft:standing_sign";
+        if (material == SignMaterial::DarkOak)
+            return "minecraft:darkoak_standing_sign";
+        return "minecraft:" + material_name + "_standing_sign";
     case SignKind::Wall:
-        return material == SignMaterial::Oak
-                   ? "minecraft:wall_sign"
-                   : "minecraft:" + material_name + "_wall_sign";
+        if (material == SignMaterial::Oak) return "minecraft:wall_sign";
+        if (material == SignMaterial::DarkOak)
+            return "minecraft:darkoak_wall_sign";
+        return "minecraft:" + material_name + "_wall_sign";
     case SignKind::CeilingHanging:
     case SignKind::WallHanging:
         return "minecraft:" + material_name + "_hanging_sign";
@@ -91,31 +147,13 @@ std::string signBlockIdentifier(SignMaterial material, SignKind kind) {
 
 std::optional<SignMaterial> materialFromSignIdentifier(
     const std::string &identifier) noexcept {
-    if (identifier == "minecraft:standing_sign" || identifier == "minecraft:wall_sign")
-        return SignMaterial::Oak;
-    constexpr std::string_view Namespace = "minecraft:";
-    if (!identifier.starts_with(Namespace)) return std::nullopt;
-    std::string_view name(identifier);
-    name.remove_prefix(Namespace.size());
-    for (const auto suffix : {
-             std::string_view("_standing_sign"),
-             std::string_view("_wall_sign"),
-             std::string_view("_hanging_sign")}) {
-        if (name.ends_with(suffix)) {
-            name.remove_suffix(suffix.size());
-            return materialFromPrefix(name);
-        }
-    }
-    return std::nullopt;
+    const auto parsed = parseCanonicalSignIdentifier(identifier);
+    return parsed ? std::optional<SignMaterial>{parsed->material} : std::nullopt;
 }
 
 SignKind classifySignIdentifier(const std::string &identifier) noexcept {
-    if (identifier == "minecraft:standing_sign" || identifier.ends_with("_standing_sign"))
-        return SignKind::Standing;
-    if (identifier == "minecraft:wall_sign" || identifier.ends_with("_wall_sign"))
-        return SignKind::Wall;
-    if (identifier.ends_with("_hanging_sign")) return SignKind::CeilingHanging;
-    return SignKind::Unknown;
+    const auto parsed = parseCanonicalSignIdentifier(identifier);
+    return parsed ? parsed->kind : SignKind::Unknown;
 }
 
 SignKind classifySign(
@@ -129,8 +167,7 @@ SignKind classifySign(
 }
 
 bool isVanillaSignIdentifier(const std::string &identifier) noexcept {
-    return classifySignIdentifier(identifier) != SignKind::Unknown &&
-           materialFromSignIdentifier(identifier).has_value();
+    return parseCanonicalSignIdentifier(identifier).has_value();
 }
 
 SignStates makeStandingSignStates(std::int32_t rotation) {

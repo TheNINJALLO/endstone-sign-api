@@ -9,10 +9,10 @@ Install the native plugin and matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands place and edit
 sign blocks and may remove only cells recorded as runner-owned.
 
-## Alpha.5 one-command matrix
+## Alpha.6 one-command matrix
 
 The standalone native download is already named
-`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.5
+`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.6
 tester wheel directly in the server's `plugins/` directory. The tester also
 recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
@@ -26,8 +26,9 @@ start one block above its Y coordinate:
 /signprobe run 100 64 100 confirm
 ```
 
-That single command preflights the exact executable/capabilities and every
-planned cell before mutation, then schedules one operation per configured interval. The
+That single command preflights the exact executable/capabilities, resolves the
+support, cleanup air, and all 48 exact sign/state descriptors, and checks every
+planned cell before mutation. It then schedules one operation per configured interval. The
 default `matrix-config.toml` covers all 12 materials in all four forms (48
 cases). For each case it creates a solid support fixture, places a blank sign
 through the Sign API, captures canonical identifier/kind/states, writes and

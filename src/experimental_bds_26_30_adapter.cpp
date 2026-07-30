@@ -10,6 +10,7 @@
 #include "bedrock/world/level/block/actor/block_actor.h"
 #include "bedrock/world/level/block/actor/vanilla_block_actor.h"
 #include "bedrock/world/level/block_source.h"
+#include "endstone/block/block_type.h"
 #include "endstone/core/level/dimension.h"
 #include "endstone/core/player.h"
 
@@ -401,6 +402,45 @@ endstone::BlockStates toEndstoneStates(const SignStates &states) {
             value);
     }
     return result;
+}
+
+struct RegisteredBlockData {
+    bool type_registered{};
+    std::unique_ptr<endstone::BlockData> data;
+};
+
+RegisteredBlockData createRegisteredBlockData(
+    const endstone::Server &server,
+    const std::string &identifier,
+    const SignStates &states) {
+    const auto registry_name = std::string(endstone::BlockType::RegistryType);
+    const auto *untyped_registry = server._getRegistry(registry_name);
+    if (!untyped_registry)
+        return {};
+
+    const auto *registry =
+        static_cast<const endstone::Registry<endstone::BlockType> *>(untyped_registry);
+    // Endstone 0.11.6 declares Registry::get noexcept, but its BlockType
+    // cache-miss specialization throws. Calling get with an absent ID would
+    // therefore terminate the process before this plugin could return an
+    // InvalidPatch. forEach only visits identifiers already present in the
+    // pre-populated BlockType cache, so an absent requested ID remains an
+    // ordinary false result.
+    const auto expected_id = endstone::BlockTypeId(identifier);
+    bool type_registered = false;
+    registry->forEach([&expected_id, &type_registered](const endstone::BlockType &type) {
+        if (type.getId() != expected_id)
+            return true;
+        type_registered = true;
+        return false;
+    });
+    if (!type_registered)
+        return {};
+
+    return {
+        true,
+        server.createBlockData(identifier, toEndstoneStates(states)),
+    };
 }
 
 SignStates fromEndstoneStates(const endstone::BlockStates &states) {
@@ -985,8 +1025,15 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                     current->revision,
                 };
             }
-            auto replacement = server_.createBlockData(identifier, toEndstoneStates(states));
-            if (!replacement) {
+            auto replacement = createRegisteredBlockData(server_, identifier, states);
+            if (!replacement.type_registered) {
+                return {
+                    SignApplyStatus::InvalidPatch,
+                    "block type is absent from the Endstone block registry",
+                    current->revision,
+                };
+            }
+            if (!replacement.data) {
                 return {
                     SignApplyStatus::InvalidPatch,
                     "Endstone rejected the requested sign block data",
@@ -994,7 +1041,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 };
             }
 
-            access->block->setData(*replacement, false);
+            access->block->setData(*replacement.data, false);
             auto native =
                 locateNativeSignActor(server_, patch.location, &text_bridge_);
             if (native.access)
@@ -1101,16 +1148,23 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 return {SignApplyStatus::BlockOccupied, message, before_revision};
             }
 
-            auto replacement =
-                server_.createBlockData(request.block_identifier, toEndstoneStates(request.states));
-            if (!replacement) {
+            auto replacement = createRegisteredBlockData(
+                server_, request.block_identifier, request.states);
+            if (!replacement.type_registered) {
+                return {
+                    SignApplyStatus::InvalidPatch,
+                    "block type is absent from the Endstone block registry",
+                    before_revision,
+                };
+            }
+            if (!replacement.data) {
                 return {
                     SignApplyStatus::InvalidPatch,
                     "Endstone rejected the requested sign block data",
                     before_revision,
                 };
             }
-            access->block->setData(*replacement, false);
+            access->block->setData(*replacement.data, false);
 
             const auto rollback = [&access]() noexcept {
                 try {

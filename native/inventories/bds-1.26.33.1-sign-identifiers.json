@@ -1,0 +1,83 @@
+{
+  "schema": 1,
+  "bds_package_version": "1.26.33.1",
+  "runtime_bds": "26.33",
+  "executables": {
+    "linux-x64": {
+      "filename": "bedrock_server",
+      "sha256": "61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375",
+      "size": 232842872
+    },
+    "windows-x64": {
+      "filename": "bedrock_server.exe",
+      "sha256": "4a0b867eee6c24310f405410b17e9794441b81ed8f2976cdd4cef54d0c441829",
+      "size": 207171408
+    }
+  },
+  "materials": {
+    "oak": {
+      "standing": "minecraft:standing_sign",
+      "wall": "minecraft:wall_sign",
+      "hanging": "minecraft:oak_hanging_sign"
+    },
+    "spruce": {
+      "standing": "minecraft:spruce_standing_sign",
+      "wall": "minecraft:spruce_wall_sign",
+      "hanging": "minecraft:spruce_hanging_sign"
+    },
+    "birch": {
+      "standing": "minecraft:birch_standing_sign",
+      "wall": "minecraft:birch_wall_sign",
+      "hanging": "minecraft:birch_hanging_sign"
+    },
+    "jungle": {
+      "standing": "minecraft:jungle_standing_sign",
+      "wall": "minecraft:jungle_wall_sign",
+      "hanging": "minecraft:jungle_hanging_sign"
+    },
+    "acacia": {
+      "standing": "minecraft:acacia_standing_sign",
+      "wall": "minecraft:acacia_wall_sign",
+      "hanging": "minecraft:acacia_hanging_sign"
+    },
+    "dark_oak": {
+      "standing": "minecraft:darkoak_standing_sign",
+      "wall": "minecraft:darkoak_wall_sign",
+      "hanging": "minecraft:dark_oak_hanging_sign"
+    },
+    "mangrove": {
+      "standing": "minecraft:mangrove_standing_sign",
+      "wall": "minecraft:mangrove_wall_sign",
+      "hanging": "minecraft:mangrove_hanging_sign"
+    },
+    "cherry": {
+      "standing": "minecraft:cherry_standing_sign",
+      "wall": "minecraft:cherry_wall_sign",
+      "hanging": "minecraft:cherry_hanging_sign"
+    },
+    "bamboo": {
+      "standing": "minecraft:bamboo_standing_sign",
+      "wall": "minecraft:bamboo_wall_sign",
+      "hanging": "minecraft:bamboo_hanging_sign"
+    },
+    "crimson": {
+      "standing": "minecraft:crimson_standing_sign",
+      "wall": "minecraft:crimson_wall_sign",
+      "hanging": "minecraft:crimson_hanging_sign"
+    },
+    "warped": {
+      "standing": "minecraft:warped_standing_sign",
+      "wall": "minecraft:warped_wall_sign",
+      "hanging": "minecraft:warped_hanging_sign"
+    },
+    "pale_oak": {
+      "standing": "minecraft:pale_oak_standing_sign",
+      "wall": "minecraft:pale_oak_wall_sign",
+      "hanging": "minecraft:pale_oak_hanging_sign"
+    }
+  },
+  "forbidden_aliases": [
+    "minecraft:dark_oak_standing_sign",
+    "minecraft:dark_oak_wall_sign"
+  ]
+}

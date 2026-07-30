@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.5**
+Version: **0.2.0-alpha.6**
 
 ## Portable core
 
@@ -34,6 +34,12 @@ Version: **0.2.0-alpha.5**
 - Linux structural mutation: executable-hash gated; blank placement,
   suite-owned no-drop removal, and UI-only editor dispatch are exposed to the
   disposable-world tester but remain live-unverified.
+- Canonical sign identifier inventory: all 36 IDs are pinned to both exact
+  executable identities; the exact Linux binary scan passed 36/36.
+- Descriptor safety: the tester resolves its support, cleanup air, and all 48
+  sign/state descriptors before mutation, and native placement enumerates only the
+  pre-populated registry cache to reject absent types before calling
+  `createBlockData`.
 - Automated tester: strict 48-case default matrix, one operation per scheduled
   interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup.
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
@@ -48,3 +54,5 @@ Version: **0.2.0-alpha.5**
 
 Use the native candidate only in a backed-up disposable world. It is intended
 to collect the live evidence required for the next boundary, not for production.
+Alpha.5 is superseded after its Linux matrix aborted on the invalid
+`dark_oak_standing_sign` alias; alpha.6 corrects and preflights that path.

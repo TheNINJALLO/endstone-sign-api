@@ -366,17 +366,17 @@ def require_safe_message(lines: list[str], label: str) -> None:
 
 def sign_identifier(material: str, kind: str) -> str:
     if kind == "standing":
-        return (
-            "minecraft:standing_sign"
-            if material == "oak"
-            else f"minecraft:{material}_standing_sign"
-        )
+        if material == "oak":
+            return "minecraft:standing_sign"
+        if material == "dark_oak":
+            return "minecraft:darkoak_standing_sign"
+        return f"minecraft:{material}_standing_sign"
     if kind == "wall":
-        return (
-            "minecraft:wall_sign"
-            if material == "oak"
-            else f"minecraft:{material}_wall_sign"
-        )
+        if material == "oak":
+            return "minecraft:wall_sign"
+        if material == "dark_oak":
+            return "minecraft:darkoak_wall_sign"
+        return f"minecraft:{material}_wall_sign"
     return f"minecraft:{material}_hanging_sign"
 
 

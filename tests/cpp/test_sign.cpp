@@ -6,17 +6,76 @@
 #include "endstone_sign/schema.h"
 #include "endstone_sign/service.h"
 
+#include <array>
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 using namespace endstone_sign;
 
 namespace {
+
+struct CanonicalMaterialIdentifiers {
+    SignMaterial material;
+    std::string_view standing;
+    std::string_view wall;
+    std::string_view hanging;
+};
+
+constexpr std::array CanonicalIdentifiers{
+    CanonicalMaterialIdentifiers{SignMaterial::Oak, "minecraft:standing_sign",
+                                 "minecraft:wall_sign",
+                                 "minecraft:oak_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Spruce,
+                                 "minecraft:spruce_standing_sign",
+                                 "minecraft:spruce_wall_sign",
+                                 "minecraft:spruce_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Birch,
+                                 "minecraft:birch_standing_sign",
+                                 "minecraft:birch_wall_sign",
+                                 "minecraft:birch_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Jungle,
+                                 "minecraft:jungle_standing_sign",
+                                 "minecraft:jungle_wall_sign",
+                                 "minecraft:jungle_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Acacia,
+                                 "minecraft:acacia_standing_sign",
+                                 "minecraft:acacia_wall_sign",
+                                 "minecraft:acacia_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::DarkOak,
+                                 "minecraft:darkoak_standing_sign",
+                                 "minecraft:darkoak_wall_sign",
+                                 "minecraft:dark_oak_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Mangrove,
+                                 "minecraft:mangrove_standing_sign",
+                                 "minecraft:mangrove_wall_sign",
+                                 "minecraft:mangrove_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Cherry,
+                                 "minecraft:cherry_standing_sign",
+                                 "minecraft:cherry_wall_sign",
+                                 "minecraft:cherry_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Bamboo,
+                                 "minecraft:bamboo_standing_sign",
+                                 "minecraft:bamboo_wall_sign",
+                                 "minecraft:bamboo_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Crimson,
+                                 "minecraft:crimson_standing_sign",
+                                 "minecraft:crimson_wall_sign",
+                                 "minecraft:crimson_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::Warped,
+                                 "minecraft:warped_standing_sign",
+                                 "minecraft:warped_wall_sign",
+                                 "minecraft:warped_hanging_sign"},
+    CanonicalMaterialIdentifiers{SignMaterial::PaleOak,
+                                 "minecraft:pale_oak_standing_sign",
+                                 "minecraft:pale_oak_wall_sign",
+                                 "minecraft:pale_oak_hanging_sign"},
+};
 
 SignText text(std::string first, std::string second = {}) {
     SignText value;
@@ -59,25 +118,61 @@ int main() {
     assert(sha256Bytes(abc_bytes) ==
            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 
-    assert(signBlockIdentifier(SignMaterial::Oak, SignKind::Standing) ==
-           "minecraft:standing_sign");
-    assert(signBlockIdentifier(SignMaterial::Oak, SignKind::Wall) ==
-           "minecraft:wall_sign");
-    assert(signBlockIdentifier(SignMaterial::PaleOak, SignKind::Standing) ==
-           "minecraft:pale_oak_standing_sign");
-    assert(signBlockIdentifier(SignMaterial::Cherry, SignKind::CeilingHanging) ==
-           "minecraft:cherry_hanging_sign");
-    assert(materialFromSignIdentifier("minecraft:standing_sign") == SignMaterial::Oak);
-    assert(materialFromSignIdentifier("minecraft:pale_oak_wall_sign") == SignMaterial::PaleOak);
+    const auto ceiling_states = makeCeilingHangingSignStates(8, true);
+    const auto wall_hanging_states = makeWallHangingSignStates(CardinalDirection::East);
+    assert(allSignMaterials().size() == CanonicalIdentifiers.size());
+    for (std::size_t index = 0; index < CanonicalIdentifiers.size(); ++index) {
+        const auto &expected = CanonicalIdentifiers[index];
+        assert(allSignMaterials()[index] == expected.material);
+        const auto standing_identifier =
+            signBlockIdentifier(expected.material, SignKind::Standing);
+        const auto wall_identifier =
+            signBlockIdentifier(expected.material, SignKind::Wall);
+        const auto ceiling_identifier =
+            signBlockIdentifier(expected.material, SignKind::CeilingHanging);
+        const auto wall_hanging_identifier =
+            signBlockIdentifier(expected.material, SignKind::WallHanging);
+        assert(standing_identifier == expected.standing);
+        assert(wall_identifier == expected.wall);
+        assert(ceiling_identifier == expected.hanging);
+        assert(wall_hanging_identifier == expected.hanging);
+        assert(materialFromSignIdentifier(standing_identifier) == expected.material);
+        assert(materialFromSignIdentifier(wall_identifier) == expected.material);
+        assert(materialFromSignIdentifier(ceiling_identifier) == expected.material);
+        assert(classifySignIdentifier(standing_identifier) == SignKind::Standing);
+        assert(classifySignIdentifier(wall_identifier) == SignKind::Wall);
+        assert(classifySign(ceiling_identifier, ceiling_states) ==
+               SignKind::CeilingHanging);
+        assert(classifySign(wall_hanging_identifier, wall_hanging_states) ==
+               SignKind::WallHanging);
+        assert(isVanillaSignIdentifier(standing_identifier));
+        assert(isVanillaSignIdentifier(wall_identifier));
+        assert(isVanillaSignIdentifier(ceiling_identifier));
+    }
+
+    // Regression: passing this non-existent descriptor to the exact BDS
+    // createBlockData boundary stopped the hosted alpha.5 matrix.
+    assert(signBlockIdentifier(SignMaterial::DarkOak, SignKind::Standing) ==
+           "minecraft:darkoak_standing_sign");
+    assert(signBlockIdentifier(SignMaterial::DarkOak, SignKind::Wall) ==
+           "minecraft:darkoak_wall_sign");
+    assert(signBlockIdentifier(SignMaterial::DarkOak, SignKind::CeilingHanging) ==
+           "minecraft:dark_oak_hanging_sign");
+    for (const auto invalid : {
+             "minecraft:dark_oak_standing_sign",
+             "minecraft:dark_oak_wall_sign",
+             "minecraft:darkoak_hanging_sign",
+             "minecraft:oak_standing_sign",
+             "minecraft:oak_wall_sign"}) {
+        assert(!materialFromSignIdentifier(invalid));
+        assert(classifySignIdentifier(invalid) == SignKind::Unknown);
+        assert(!isVanillaSignIdentifier(invalid));
+    }
+    assert(validateSignBlockStates(
+        "minecraft:dark_oak_standing_sign", makeStandingSignStates(0)));
     assert(!materialFromSignIdentifier("minecraft:oak_sign"));
 
-    const auto ceiling_states = makeCeilingHangingSignStates(8, true);
     assert(!validateSignBlockStates("minecraft:oak_hanging_sign", ceiling_states));
-    assert(classifySign("minecraft:oak_hanging_sign", ceiling_states) ==
-           SignKind::CeilingHanging);
-    const auto wall_hanging_states = makeWallHangingSignStates(CardinalDirection::East);
-    assert(classifySign("minecraft:oak_hanging_sign", wall_hanging_states) ==
-           SignKind::WallHanging);
     auto invalid_states = makeStandingSignStates(16);
     assert(validateSignBlockStates("minecraft:standing_sign", invalid_states));
 

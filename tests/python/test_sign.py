@@ -34,6 +34,7 @@ from endstone_sign import (
     classify_identifier,
     classify_sign,
     flatten_lines,
+    is_vanilla_sign_identifier,
     make_ceiling_hanging_sign_states,
     make_nbt_projection,
     make_standing_sign_states,
@@ -63,23 +64,118 @@ def standing(location: SignLocation, material: SignMaterial, first: str) -> Sign
 
 class SignApiTests(unittest.TestCase):
     def test_material_and_identifier_mapping(self) -> None:
-        self.assertEqual(sign_block_identifier(SignMaterial.OAK, SignKind.STANDING), "minecraft:standing_sign")
-        self.assertEqual(sign_block_identifier(SignMaterial.OAK, SignKind.WALL), "minecraft:wall_sign")
-        self.assertEqual(
-            sign_block_identifier(SignMaterial.PALE_OAK, SignKind.STANDING),
-            "minecraft:pale_oak_standing_sign",
+        identifiers = {
+            SignMaterial.OAK: (
+                "minecraft:standing_sign",
+                "minecraft:wall_sign",
+                "minecraft:oak_hanging_sign",
+            ),
+            SignMaterial.SPRUCE: (
+                "minecraft:spruce_standing_sign",
+                "minecraft:spruce_wall_sign",
+                "minecraft:spruce_hanging_sign",
+            ),
+            SignMaterial.BIRCH: (
+                "minecraft:birch_standing_sign",
+                "minecraft:birch_wall_sign",
+                "minecraft:birch_hanging_sign",
+            ),
+            SignMaterial.JUNGLE: (
+                "minecraft:jungle_standing_sign",
+                "minecraft:jungle_wall_sign",
+                "minecraft:jungle_hanging_sign",
+            ),
+            SignMaterial.ACACIA: (
+                "minecraft:acacia_standing_sign",
+                "minecraft:acacia_wall_sign",
+                "minecraft:acacia_hanging_sign",
+            ),
+            SignMaterial.DARK_OAK: (
+                "minecraft:darkoak_standing_sign",
+                "minecraft:darkoak_wall_sign",
+                "minecraft:dark_oak_hanging_sign",
+            ),
+            SignMaterial.MANGROVE: (
+                "minecraft:mangrove_standing_sign",
+                "minecraft:mangrove_wall_sign",
+                "minecraft:mangrove_hanging_sign",
+            ),
+            SignMaterial.CHERRY: (
+                "minecraft:cherry_standing_sign",
+                "minecraft:cherry_wall_sign",
+                "minecraft:cherry_hanging_sign",
+            ),
+            SignMaterial.BAMBOO: (
+                "minecraft:bamboo_standing_sign",
+                "minecraft:bamboo_wall_sign",
+                "minecraft:bamboo_hanging_sign",
+            ),
+            SignMaterial.CRIMSON: (
+                "minecraft:crimson_standing_sign",
+                "minecraft:crimson_wall_sign",
+                "minecraft:crimson_hanging_sign",
+            ),
+            SignMaterial.WARPED: (
+                "minecraft:warped_standing_sign",
+                "minecraft:warped_wall_sign",
+                "minecraft:warped_hanging_sign",
+            ),
+            SignMaterial.PALE_OAK: (
+                "minecraft:pale_oak_standing_sign",
+                "minecraft:pale_oak_wall_sign",
+                "minecraft:pale_oak_hanging_sign",
+            ),
+        }
+        self.assertEqual(set(identifiers), set(SignMaterial))
+        ceiling_states = make_ceiling_hanging_sign_states(0, False)
+        wall_hanging_states = make_wall_hanging_sign_states(CardinalDirection.NORTH)
+        for material, (standing_id, wall_id, hanging_id) in identifiers.items():
+            with self.subTest(material=material):
+                expected_by_kind = {
+                    SignKind.STANDING: standing_id,
+                    SignKind.WALL: wall_id,
+                    SignKind.CEILING_HANGING: hanging_id,
+                    SignKind.WALL_HANGING: hanging_id,
+                }
+                for kind, expected in expected_by_kind.items():
+                    self.assertEqual(sign_block_identifier(material, kind), expected)
+                self.assertEqual(material_from_sign_identifier(standing_id), material)
+                self.assertEqual(material_from_sign_identifier(wall_id), material)
+                self.assertEqual(material_from_sign_identifier(hanging_id), material)
+                self.assertEqual(classify_identifier(standing_id), SignKind.STANDING)
+                self.assertEqual(classify_identifier(wall_id), SignKind.WALL)
+                self.assertEqual(
+                    classify_sign(hanging_id, ceiling_states),
+                    SignKind.CEILING_HANGING,
+                )
+                self.assertEqual(
+                    classify_sign(hanging_id, wall_hanging_states),
+                    SignKind.WALL_HANGING,
+                )
+                self.assertTrue(is_vanilla_sign_identifier(standing_id))
+                self.assertTrue(is_vanilla_sign_identifier(wall_id))
+                self.assertTrue(is_vanilla_sign_identifier(hanging_id))
+
+        # Regression: this generated descriptor reached the exact BDS
+        # createBlockData boundary and stopped the hosted alpha.5 matrix.
+        for invalid in (
+            "minecraft:dark_oak_standing_sign",
+            "minecraft:dark_oak_wall_sign",
+            "minecraft:darkoak_hanging_sign",
+            "minecraft:oak_standing_sign",
+            "minecraft:oak_wall_sign",
+            "minecraft:oak_sign",
+        ):
+            with self.subTest(invalid=invalid):
+                self.assertIsNone(material_from_sign_identifier(invalid))
+                self.assertEqual(classify_identifier(invalid), SignKind.UNKNOWN)
+                self.assertFalse(is_vanilla_sign_identifier(invalid))
+        self.assertIsNotNone(
+            validate_sign_block_states(
+                "minecraft:dark_oak_standing_sign",
+                make_standing_sign_states(0),
+            )
         )
-        self.assertEqual(
-            sign_block_identifier(SignMaterial.CHERRY, SignKind.CEILING_HANGING),
-            "minecraft:cherry_hanging_sign",
-        )
-        self.assertEqual(material_from_sign_identifier("minecraft:standing_sign"), SignMaterial.OAK)
-        self.assertEqual(
-            material_from_sign_identifier("minecraft:pale_oak_wall_sign"),
-            SignMaterial.PALE_OAK,
-        )
-        self.assertIsNone(material_from_sign_identifier("minecraft:oak_sign"))
-        self.assertEqual(classify_identifier("minecraft:oak_sign"), SignKind.UNKNOWN)
 
     def test_block_state_helpers_and_validation(self) -> None:
         standing_states = make_standing_sign_states(15)

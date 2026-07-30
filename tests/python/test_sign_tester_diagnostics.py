@@ -185,6 +185,27 @@ class FakeMatrixServer:
         return None
 
 
+class FakeBlockDescriptor:
+    def __init__(self, block_type: str, states: dict[str, Any] | None = None) -> None:
+        self.type = block_type
+        self.block_states = dict(states or {})
+
+
+class FakeDescriptorServer:
+    def __init__(self, invalid: set[str] | None = None) -> None:
+        self.invalid = set(invalid or ())
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+
+    def create_block_data(
+        self, block_type: str, states: dict[str, Any] | None = None
+    ) -> FakeBlockDescriptor:
+        requested = dict(states or {})
+        self.calls.append((block_type, requested))
+        if block_type in self.invalid:
+            raise ValueError(f"unknown block type: {block_type}")
+        return FakeBlockDescriptor(block_type, requested)
+
+
 class FakeMatrixBridge:
     def __init__(self, dimension: FakeMatrixDimension) -> None:
         self.dimension = dimension
@@ -532,6 +553,56 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         self.assertIn('py::arg("acquire_lock") = false', source)
         self.assertIn('py::arg("bypass_wax") = false', source)
 
+    def test_matrix_resolves_every_descriptor_before_world_mutation(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        cases = AUTOMATION_MODULE.build_cases(
+            config, "Overworld", {"x": 0, "y": 64, "z": 0}
+        )
+        server = FakeDescriptorServer()
+
+        failures = PLUGIN_CLASS._matrix_descriptor_preflight(server, config, cases)
+
+        self.assertEqual(failures, [])
+        self.assertEqual(len(server.calls), 50)
+        self.assertEqual(server.calls[0], ("minecraft:stone", {}))
+        self.assertEqual(server.calls[1], ("minecraft:air", {}))
+        self.assertEqual(
+            server.calls[2],
+            ("minecraft:standing_sign", {"ground_sign_direction": 0}),
+        )
+
+    def test_matrix_descriptor_preflight_rejects_bad_dark_oak_alias(self) -> None:
+        config = AUTOMATION_MODULE.load_config(PACKAGE_DIR / "default-config.toml")
+        config["materials"] = ["dark_oak"]
+        config["kinds"] = ["standing"]
+        cases = AUTOMATION_MODULE.build_cases(
+            config, "Overworld", {"x": 0, "y": 64, "z": 0}
+        )
+        cases[0]["identifier"] = "minecraft:dark_oak_standing_sign"
+        server = FakeDescriptorServer({"minecraft:dark_oak_standing_sign"})
+
+        failures = PLUGIN_CLASS._matrix_descriptor_preflight(server, config, cases)
+
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0]["case_id"], "01-dark_oak-standing")
+        self.assertIn("unknown block type", failures[0]["reason"])
+
+    def test_every_native_mutation_intent_is_a_durable_checkpoint(self) -> None:
+        source = (PACKAGE_DIR / "plugin.py").read_text(encoding="utf-8")
+        checkpoint_body = source.split("checkpoint_phases = {", 1)[1].split("}", 1)[0]
+        for phase in (
+            "place",
+            "front",
+            "back",
+            "line_edit",
+            "color",
+            "glow",
+            "wax",
+            "unwax",
+        ):
+            with self.subTest(phase=phase):
+                self.assertIn(f'"{phase}"', checkpoint_body)
+
     def test_structural_mutations_are_executable_hash_gated_inside_adapter(self) -> None:
         source = (ROOT / "src" / "experimental_bds_26_30_adapter.cpp").read_text(
             encoding="utf-8"
@@ -550,7 +621,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -610,7 +681,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -653,7 +724,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -699,7 +770,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -743,7 +814,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a5",
+            plugin_version="0.2.0a6",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",

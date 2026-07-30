@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.5
+  RELEASE_VERSION: 0.2.0-alpha.6
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -29,6 +29,7 @@ jobs:
       - name: Verify synchronized project metadata
         run: |
           python scripts/verify_project_metadata.py
+          python scripts/verify_bds_sign_identifiers.py --platform linux-x64
           python tools/verify_fail_closed.py
       - name: Verify both native manifests remain unverified
         shell: bash

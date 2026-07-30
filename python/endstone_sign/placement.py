@@ -10,40 +10,37 @@ def sign_block_identifier(material: SignMaterial, kind: SignKind) -> str:
     if kind is SignKind.UNKNOWN:
         raise ValueError("cannot create an identifier for an unknown sign kind")
     if kind is SignKind.STANDING:
-        return "minecraft:standing_sign" if material is SignMaterial.OAK else f"minecraft:{material.value}_standing_sign"
+        if material is SignMaterial.OAK:
+            return "minecraft:standing_sign"
+        if material is SignMaterial.DARK_OAK:
+            return "minecraft:darkoak_standing_sign"
+        return f"minecraft:{material.value}_standing_sign"
     if kind is SignKind.WALL:
-        return "minecraft:wall_sign" if material is SignMaterial.OAK else f"minecraft:{material.value}_wall_sign"
+        if material is SignMaterial.OAK:
+            return "minecraft:wall_sign"
+        if material is SignMaterial.DARK_OAK:
+            return "minecraft:darkoak_wall_sign"
+        return f"minecraft:{material.value}_wall_sign"
     if kind in (SignKind.CEILING_HANGING, SignKind.WALL_HANGING):
         return f"minecraft:{material.value}_hanging_sign"
     raise ValueError("unsupported sign kind")
 
 
+_CANONICAL_SIGN_IDENTIFIERS: dict[str, tuple[SignMaterial, SignKind]] = {
+    sign_block_identifier(material, kind): (material, kind)
+    for material in ALL_SIGN_MATERIALS
+    for kind in (SignKind.STANDING, SignKind.WALL, SignKind.CEILING_HANGING)
+}
+
+
 def material_from_sign_identifier(identifier: str) -> SignMaterial | None:
-    if identifier in ("minecraft:standing_sign", "minecraft:wall_sign"):
-        return SignMaterial.OAK
-    if not identifier.startswith("minecraft:"):
-        return None
-    name = identifier.removeprefix("minecraft:")
-    for suffix in ("_standing_sign", "_wall_sign", "_hanging_sign"):
-        if name.endswith(suffix):
-            prefix = name.removesuffix(suffix)
-            try:
-                return SignMaterial(prefix)
-            except ValueError:
-                return None
-    return None
+    parsed = _CANONICAL_SIGN_IDENTIFIERS.get(identifier)
+    return parsed[0] if parsed is not None else None
 
 
 def classify_identifier(identifier: str) -> SignKind:
-    if identifier == "minecraft:standing_sign" or identifier.endswith("_standing_sign"):
-        kind = SignKind.STANDING
-    elif identifier == "minecraft:wall_sign" or identifier.endswith("_wall_sign"):
-        kind = SignKind.WALL
-    elif identifier.endswith("_hanging_sign"):
-        kind = SignKind.CEILING_HANGING
-    else:
-        return SignKind.UNKNOWN
-    return kind if material_from_sign_identifier(identifier) is not None else SignKind.UNKNOWN
+    parsed = _CANONICAL_SIGN_IDENTIFIERS.get(identifier)
+    return parsed[1] if parsed is not None else SignKind.UNKNOWN
 
 
 def classify_sign(identifier: str, states: dict[str, SignStateValue] | object) -> SignKind:

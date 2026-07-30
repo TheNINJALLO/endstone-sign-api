@@ -1,6 +1,6 @@
 {
   "name": "endstone-sign-api",
-  "version": "0.2.0-alpha.5",
+  "version": "0.2.0-alpha.6",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapter_family": "Minecraft Bedrock 26.30",

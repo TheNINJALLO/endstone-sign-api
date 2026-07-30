@@ -420,7 +420,21 @@ RegisteredBlockData createRegisteredBlockData(
 
     const auto *registry =
         static_cast<const endstone::Registry<endstone::BlockType> *>(untyped_registry);
-    if (!registry->get(endstone::BlockTypeId(identifier)))
+    // Endstone 0.11.6 declares Registry::get noexcept, but its BlockType
+    // cache-miss specialization throws. Calling get with an absent ID would
+    // therefore terminate the process before this plugin could return an
+    // InvalidPatch. forEach only visits identifiers already present in the
+    // pre-populated BlockType cache, so an absent requested ID remains an
+    // ordinary false result.
+    const auto expected_id = endstone::BlockTypeId(identifier);
+    bool type_registered = false;
+    registry->forEach([&expected_id, &type_registered](const endstone::BlockType &type) {
+        if (type.getId() != expected_id)
+            return true;
+        type_registered = true;
+        return false;
+    });
+    if (!type_registered)
         return {};
 
     return {

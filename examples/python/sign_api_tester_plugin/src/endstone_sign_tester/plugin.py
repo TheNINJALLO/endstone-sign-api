@@ -933,24 +933,29 @@ class SignApiTesterPlugin(Plugin):
         """
 
         failures: list[dict[str, Any]] = []
-        try:
-            support = server.create_block_data(config["support_block"])
-            if support is None or str(support.type) != config["support_block"]:
+        for role, identifier in (
+            ("support", config["support_block"]),
+            ("cleanup", "minecraft:air"),
+        ):
+            try:
+                descriptor = server.create_block_data(identifier)
+                if descriptor is not None and str(descriptor.type) == identifier:
+                    continue
                 failures.append(
                     {
-                        "role": "support",
-                        "identifier": config["support_block"],
-                        "reason": "Endstone did not resolve the exact support block type",
+                        "role": role,
+                        "identifier": identifier,
+                        "reason": "Endstone did not resolve the exact fixture block type",
                     }
                 )
-        except Exception as error:
-            failures.append(
-                {
-                    "role": "support",
-                    "identifier": config["support_block"],
-                    "reason": str(error),
-                }
-            )
+            except Exception as error:
+                failures.append(
+                    {
+                        "role": role,
+                        "identifier": identifier,
+                        "reason": str(error),
+                    }
+                )
 
         for case in cases:
             identifier = str(case["identifier"])

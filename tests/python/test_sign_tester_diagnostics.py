@@ -563,10 +563,11 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         failures = PLUGIN_CLASS._matrix_descriptor_preflight(server, config, cases)
 
         self.assertEqual(failures, [])
-        self.assertEqual(len(server.calls), 49)
+        self.assertEqual(len(server.calls), 50)
         self.assertEqual(server.calls[0], ("minecraft:stone", {}))
+        self.assertEqual(server.calls[1], ("minecraft:air", {}))
         self.assertEqual(
-            server.calls[1],
+            server.calls[2],
             ("minecraft:standing_sign", {"ground_sign_direction": 0}),
         )
 

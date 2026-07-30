@@ -27,8 +27,8 @@ start one block above its Y coordinate:
 ```
 
 That single command preflights the exact executable/capabilities, resolves the
-support and all 48 exact sign/state descriptors, and checks every planned cell
-before mutation. It then schedules one operation per configured interval. The
+support, cleanup air, and all 48 exact sign/state descriptors, and checks every
+planned cell before mutation. It then schedules one operation per configured interval. The
 default `matrix-config.toml` covers all 12 materials in all four forms (48
 cases). For each case it creates a solid support fixture, places a blank sign
 through the Sign API, captures canonical identifier/kind/states, writes and

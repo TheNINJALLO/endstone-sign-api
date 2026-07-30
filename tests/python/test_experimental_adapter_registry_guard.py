@@ -7,21 +7,39 @@ ADAPTER_SOURCE = ROOT / "src" / "experimental_bds_26_30_adapter.cpp"
 
 
 class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
-    def test_create_block_data_is_centralized_behind_non_throwing_lookup(self) -> None:
+    def test_direct_descriptor_creation_is_guarded_by_cache_only_enumeration(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")
         start = source.index("RegisteredBlockData createRegisteredBlockData(")
         end = source.index("\n}\n\nSignStates fromEndstoneStates", start)
         helper = source[start:end]
 
         registry_lookup = helper.index("server._getRegistry(registry_name)")
-        type_lookup = helper.index("registry->get(endstone::BlockTypeId(identifier))")
+        type_enumeration = helper.index("registry->forEach(")
         descriptor_creation = helper.index("server.createBlockData(")
 
-        self.assertLess(registry_lookup, type_lookup)
-        self.assertLess(type_lookup, descriptor_creation)
+        self.assertLess(registry_lookup, type_enumeration)
+        self.assertLess(type_enumeration, descriptor_creation)
+        self.assertIn("type.getId() != expected_id", helper)
+        self.assertNotIn("registry->get(", helper)
+        self.assertIn("Calling get with an absent ID would", helper)
         self.assertEqual(source.count("server.createBlockData("), 1)
         self.assertNotIn("server_.createBlockData(", source)
         self.assertEqual(source.count("createRegisteredBlockData("), 3)
+
+    def test_indirect_air_descriptor_path_is_exact_and_tester_preflighted(self) -> None:
+        source = ADAPTER_SOURCE.read_text(encoding="utf-8")
+        tester = (
+            ROOT
+            / "examples"
+            / "python"
+            / "sign_api_tester_plugin"
+            / "src"
+            / "endstone_sign_tester"
+            / "plugin.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('setType("minecraft:air", false)', source)
+        self.assertIn('(\"cleanup\", \"minecraft:air\")', tester)
 
     def test_missing_registry_entry_is_returned_as_an_invalid_patch(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")

@@ -8,13 +8,14 @@
   tester classification now reject the invalid separated aliases.
 - Added exhaustive 12-material identifier coverage across standing, wall,
   ceiling-hanging, and wall-hanging placement plans.
-- Added a pre-mutation tester gate that resolves the support block and every
-  planned sign identifier/state descriptor through Endstone before the first
-  arena write. Any missing type, invalid state, or readback mismatch stops the
-  run and is recorded in its report.
-- Added a native registry lookup before the experimental adapter enters
+- Added a pre-mutation tester gate that resolves the support block, cleanup air,
+  and every planned sign identifier/state descriptor through Endstone before
+  the first arena write. Any missing type, invalid state, or readback mismatch
+  stops the run and is recorded in its report.
+- Added a cache-only native registry enumeration before the experimental adapter enters
   Endstone's `createBlockData` boundary. An absent block type now returns an
-  invalid-patch result without invoking that throwing path.
+  invalid-patch result without invoking either Endstone's terminating
+  `Registry<BlockType>::get` miss path or its throwing descriptor path.
 - Added an executable-bound inventory of all 36 canonical sign block IDs and
   a privacy-safe streaming verifier. Exact builds always compare the portable
   API and test-wheel generators; a locally supplied exact server executable

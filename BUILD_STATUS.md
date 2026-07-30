@@ -36,9 +36,10 @@ Version: **0.2.0-alpha.6**
   disposable-world tester but remain live-unverified.
 - Canonical sign identifier inventory: all 36 IDs are pinned to both exact
   executable identities; the exact Linux binary scan passed 36/36.
-- Descriptor safety: the tester resolves its support plus all 48 sign/state
-  descriptors before mutation, and native placement rejects absent registry
-  types before calling `createBlockData`.
+- Descriptor safety: the tester resolves its support, cleanup air, and all 48
+  sign/state descriptors before mutation, and native placement enumerates only the
+  pre-populated registry cache to reject absent types before calling
+  `createBlockData`.
 - Automated tester: strict 48-case default matrix, one operation per scheduled
   interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup.
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8

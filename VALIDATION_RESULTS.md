@@ -24,7 +24,7 @@ standing placement. Its plan generated the nonexistent
 `minecraft:darkoak_standing_sign` spelling. Alpha.5 is superseded.
 
 Alpha.6 corrects and strictly classifies the legacy dark-oak standing/wall
-identifiers, resolves all 49 support/sign descriptors through Endstone before
+identifiers, resolves all 50 support/cleanup/sign descriptors through Endstone before
 the first world write, checks the native block registry before
 `createBlockData`, and records every mutation phase durably. A committed
 36-identifier inventory matches the portable core, test wheel, both executable
@@ -62,14 +62,14 @@ wheels. They are experimental artifacts, not verified production plugins.
 | C++ example compile/run | Passed |
 | CMake install layout | Passed |
 | Windows portable shared library (`endstone_sign_api.dll`) | Passed |
-| Linux portable shared-library build | Configured in GitHub release matrix; pending CI runner |
+| Linux portable shared-library build | Passed in GitHub CI |
 
 ## Python validation
 
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `65/65` passed, including identifier inventory and descriptor-preflight coverage |
+| Unit tests | `66/66` passed, including identifier inventory and descriptor-preflight coverage |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -109,8 +109,8 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Structural mutations exact-executable-hash gated in adapter | Passed by source test |
 | Canonical sign inventory matches portable/test-wheel generators | Passed, 36/36 identifiers |
 | Exact Linux executable identifier scan | Passed, exact hash and 36/36 identifiers |
-| Missing native block types rejected before `createBlockData` | Passed by source guard and regression test |
-| Tester resolves all support/sign descriptors before mutation | Passed, 49 descriptors in the default plan |
+| Missing native block types rejected by cache-only enumeration before `createBlockData` | Passed by source guard and regression test |
+| Tester resolves all support/cleanup/sign descriptors before mutation | Passed, 50 descriptors in the default plan |
 | Default matrix is 12 materials × 4 forms without cell collisions | Passed |
 | Advanced fields are capability-gated without native calls | Passed |
 | Automated evidence never activates the native manifest | Passed |

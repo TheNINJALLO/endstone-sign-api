@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - "v*"
+    branches:
+      - "v*"
   workflow_dispatch:
     inputs:
       tag:
@@ -19,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.4
+  RELEASE_VERSION: 0.2.0-alpha.5
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -34,6 +36,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
+      - name: Run portable Python and C++ test suites
+        shell: bash
+        run: |
+          set -euxo pipefail
+          python -m pip install -e .
+          python -m compileall -q python examples/python/sign_api_tester_plugin/src
+          python -m unittest discover -s tests/python -p 'test_*.py' -v
+          cmake -S . -B build-release-validate \
+            -DENDSTONE_SIGN_BUILD_TESTS=ON \
+            -DENDSTONE_SIGN_BUILD_SHARED=ON \
+            -DENDSTONE_SIGN_BUILD_PLUGIN=OFF
+          cmake --build build-release-validate --config Release --parallel 2
+          ctest --test-dir build-release-validate -C Release --output-on-failure
       - name: Verify project metadata and release tag
         env:
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
@@ -53,7 +68,16 @@ jobs:
               raise SystemExit(f"Release tag must be {expected}, got {actual}")
           PYTAG
           git fetch origin --no-tags +refs/heads/main:refs/remotes/origin/main
-          release_commit="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+          release_commit="$(git rev-parse HEAD)"
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            git fetch origin --force \
+              "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+            tag_commit="$(git rev-parse "${RELEASE_TAG}^{commit}")"
+            if [[ "$tag_commit" != "$release_commit" ]]; then
+              echo "Existing release tag points to $tag_commit, not checked-out $release_commit" >&2
+              exit 1
+            fi
+          fi
           if ! git merge-base --is-ancestor "$release_commit" origin/main; then
             echo "Release tag must point to a commit contained in main" >&2
             exit 1
@@ -231,13 +255,22 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Experimental disposable-server probe candidate for Endstone 0.11.6 / BDS 1.26.33. Standalone native downloads use canonical plugin-ready filenames. Linux short unfiltered front/back text is exact-hash and readback gated; complete native control and Windows text remain unverified. Do not install on a production world.'
+          notes='Experimental disposable-server matrix candidate for Endstone 0.11.6 / BDS 1.26.33. The tester runs a configurable 12-material x 4-form plan with blank placement, structural capture, short raw front/back text, per-line preservation, evidence journaling, cancellation, and ownership-aware cleanup. Every Linux mutation is exact-executable-hash gated. Advanced SignBlockActor NBT, client/manual checkpoints, complete native control, and Windows mutation remain unverified. Do not install on a production world.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"
           else
+            if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+              tag_args=(--verify-tag)
+            else
+              tag_args=(--target "$GITHUB_SHA")
+            fi
             gh release create "$RELEASE_TAG" release-assets/* \
-              --verify-tag --prerelease --latest=false \
+              "${tag_args[@]}" --prerelease --latest=false \
               --title "Endstone Sign API $RELEASE_TAG - Probe Candidate" \
               --notes "$notes"
+          fi
+          if [[ "$GITHUB_REF" == "refs/heads/$RELEASE_TAG" ]]; then
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/git/refs/heads/$RELEASE_TAG" || true
           fi

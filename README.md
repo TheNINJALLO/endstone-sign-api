@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.4`
+**Release:** `v0.2.0-alpha.5`
 
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
@@ -9,11 +9,36 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.4 also ships a deliberately narrow native probe adapter for a backed-up disposable server. Its standalone native downloads now use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.5 also ships a deliberately partial native probe adapter and a configurable automated tester for a backed-up disposable server. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
 
 On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
 
-This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. The Windows candidate remains structural-only while its independent text symbols are unresolved.
+This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. Alpha.5 additionally requires the exact executable hash inside every structural mutation, so the Windows candidate is read-only until its independent binary and text boundaries are verified.
+
+The matching tester wheel can plan and run all 12 materials across all four
+forms with one command:
+
+```text
+/signprobe run 100 64 100 confirm
+```
+
+The anchor and every planned sign/support cell must be air. The runner creates
+solid fixture supports through Endstone's public block API, places blank signs
+through `endstone:sign:v2`, then verifies structural capture, front/back raw
+text, opposite-side preservation, and an individual-line change one operation
+per scheduled tick. Its default text includes raw `§` color codes while staying
+inside the exact 22-byte limit. Run `/signprobe config` to print the generated
+`matrix-config.toml` path in the tester's plugin data directory, then edit it to
+select materials, forms, text, spacing, ARGB, glow, wax, cleanup, and scheduling
+behavior.
+
+ARGB color, glow, wax, filtered text, text objects, owner data, formatting
+flags, editor locking, clone, move, and atomic operations are present in the
+coverage report but are not called when their capability is false. Client
+rendering, editor UI acknowledgement, player edits, reconnect, and restart
+persistence remain explicit manual checkpoints. Therefore an automated report
+always has `activation_eligible: false`, even when every currently supported
+server-side check passes.
 
 The probe registers a **partial experimental** `endstone:sign:v2` service; `complete_control` remains false. A verified complete-control bridge remains closed until all of these are simultaneously true:
 
@@ -144,7 +169,7 @@ python -m unittest discover -s tests/python -v
 The portable shared library is emitted as `endstone_sign_api.dll` on Windows
 and `libendstone_sign_api.so` on Linux. It contains the tested API, transaction
 engine, and in-memory adapter; it is not the native Endstone plugin. Tagged
-GitHub releases package both platform SDKs and the tested pure-Python wheel.
+GitHub releases package both platform SDK ZIPs, native plugins, and the matching platform-specific tester wheels.
 
 ## Exact native activation
 

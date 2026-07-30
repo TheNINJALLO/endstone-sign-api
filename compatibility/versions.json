@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.0-alpha.4",
+  "api": "0.2.0-alpha.5",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -10,7 +10,7 @@
       "runtime_bds": "26.33",
       "official_package": "1.26.33.1",
       "endstone": "0.11.6",
-      "status": "experimental-linux-plain-text-probe",
+      "status": "experimental-linux-automated-matrix-probe",
       "portable_contract": "complete",
       "native_service_registration": true,
       "verified_native_service_registration": false,

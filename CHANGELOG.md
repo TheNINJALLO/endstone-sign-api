@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.2.0-alpha.5
+
+- Added a one-command, tick-stepped disposable-world matrix:
+  `/signprobe run <x> <y> <z> confirm`. The default configuration covers all
+  12 sign materials in standing, wall, ceiling-hanging, and wall-hanging forms.
+- Added strict editable `matrix-config.toml` settings for materials, forms,
+  canonical states, support blocks, spacing, raw formatting-code text, ARGB,
+  glow, wax, scheduling, cleanup, and failure behavior.
+- Added a package-local blank-placement bridge and automated structural
+  capture, exact front/back short-text readback, opposite-side preservation,
+  individual-line preservation, cancellation, and ownership-aware cleanup.
+- Added untruncated per-run JSON evidence with an explicit disposition for all
+  31 activation probes. Unsupported and client/manual probes never count as
+  passes and `activation_eligible` remains false.
+- Fixed the editor UI probe to request `acquire_lock=false` and
+  `bypass_wax=true`, without claiming an editor lock or client acknowledgement.
+- Hardened every experimental structural mutation with the exact executable
+  SHA-256 gate inside the native adapter. Unverified Windows structural writes
+  are now disabled rather than relying only on tester-side preflight.
+- Added capability-specific no-mutation gates for ARGB color, glow, and wax;
+  the Linux plain-text bridge no longer receives those requests while their
+  native NBT boundaries are closed.
+- Added expected-revision checks to every tester text write, exact
+  placement-revision ownership, structural revalidation on every readback,
+  and native rollback when blank placement cannot be verified.
+- Removed force-placement from the tester bridge and made cleanup validate the
+  run ID, configuration hash, reconstructed plan, world identity, and current
+  server/plugin binaries before it can touch a recorded cell.
+- Added the complete portable test suites to the tag-release gate and expanded
+  tester-wheel smoke checks to validate the packaged alpha.5 plugin and
+  48-case default configuration.
+
 ## 0.2.0-alpha.4
 
 - Fixed native-plugin discovery when the standalone alpha.3 `.so`/`.dll` was

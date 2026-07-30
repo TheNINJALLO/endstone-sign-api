@@ -154,6 +154,7 @@ for platform, expected_hash in expected_hashes.items():
 for required in (
     "python scripts/verify_project_metadata.py",
     "python scripts/verify_bds_sign_identifiers.py --platform linux-x64",
+    "python tools/verify_native_symbol_candidates.py",
     "python tools/verify_fail_closed.py",
     "--allow-incomplete",
     "python -m unittest discover",
@@ -166,6 +167,8 @@ expect("RELEASE_VERSION: 0.2.0-alpha.6" in release_workflow,
        "tag workflow release version")
 expect("python scripts/verify_bds_sign_identifiers.py --platform linux-x64"
        in release_workflow, "tag workflow identifier inventory verification")
+expect("python tools/verify_native_symbol_candidates.py" in release_workflow,
+       "tag workflow static symbol-candidate ledger verification")
 
 if failures:
     raise SystemExit("metadata verification failed:\n- " + "\n- ".join(failures))

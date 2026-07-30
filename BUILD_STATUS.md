@@ -26,14 +26,18 @@ Version: **0.2.0-alpha.6**
 - Windows executable identity: pinned from the exact official archive.
 - Linux plain-text candidates: independently mapped and protected by exact
   executable, full-function, vtable, representation, readback, and rollback gates.
+- The separate alpha.6 Linux byte-candidate ledger passes its exact-ELF range,
+  full-hash, and unique-entry-fingerprint audit; it remains non-activating static
+  evidence only.
 - Windows runtime executable-identity verification and sign text symbols: unresolved; its probe candidate is build/packaging diagnostics only, with live capture and mutation disabled.
 - Verified bridge source: absent.
 - Stage probe: not passed.
 - Experimental service registration: enabled with partial capabilities in the
   disposable-server candidate.
 - Linux structural mutation: executable-hash gated; blank placement,
-  suite-owned no-drop removal, and UI-only editor dispatch are exposed to the
-  disposable-world tester but remain live-unverified.
+  structural capture, and the supported text workflow passed across the hosted
+  48-case alpha.6 matrix. Suite-owned no-drop removal and UI-only editor
+  dispatch remain live-unverified.
 - Canonical sign identifier inventory: all 36 IDs are pinned to both exact
   executable identities; the exact Linux binary scan passed 36/36.
 - Descriptor safety: the tester resolves its support, cleanup air, and all 48
@@ -41,9 +45,11 @@ Version: **0.2.0-alpha.6**
   pre-populated registry cache to reject absent types before calling
   `createBlockData`.
 - Automated tester: strict 48-case default matrix, one operation per scheduled
-  interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup.
+  interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup;
+  the hosted alpha.6 run passed all 48 material/form cases.
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
-  within the 22-byte boundary; client rendering is not inferred.
+  within the 22-byte boundary across the hosted matrix; client rendering is not
+  inferred.
 - Advanced SignBlockActor NBT: color, glow, outline, wax, filtered text,
   TextObject, owner, formatting flags, profanity state, and editor locking stay
   capability-gated and are never auto-marked passed.
@@ -55,4 +61,7 @@ Version: **0.2.0-alpha.6**
 Use the native candidate only in a backed-up disposable world. It is intended
 to collect the live evidence required for the next boundary, not for production.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
-`dark_oak_standing_sign` alias; alpha.6 corrects and preflights that path.
+`dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
+48 default cases, including the corrected legacy dark-oak standing and wall
+identifiers. Expected unsupported advanced and manual checks remained
+skipped/pending, so stage-probe and complete-control activation remain closed.

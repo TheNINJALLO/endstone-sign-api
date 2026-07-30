@@ -15,7 +15,7 @@ from zipfile import ZipFile
 
 ROOT = Path(__file__).resolve().parents[2]
 PYTHON = sys.executable
-VERSION = "0.2.0-alpha.6"
+VERSION = "0.2.0-alpha.7"
 SLUG = "endstone-sign-api"
 
 
@@ -53,8 +53,24 @@ class SignReleaseToolTests(unittest.TestCase):
         bridge.parent.mkdir(parents=True)
         bridge_payload = SignReleaseToolTests.fake_pe()
         bridge.write_bytes(bridge_payload)
-        wheel = stage / "plugins" / "endstone_sign_tester-0.2.0a6-cp314-cp314-win_amd64.whl"
-        dist_info = "endstone_sign_tester-0.2.0a6.dist-info"
+        qualification_files = {
+            "tools/validate_full_system_acceptance.py": b"# validator fixture\n",
+            "tools/verify_native_manifest.py": b"# manifest fixture\n",
+            (
+                "examples/python/sign_api_tester_plugin/src/"
+                "endstone_sign_tester/automation.py"
+            ): b"# automation fixture\n",
+            (
+                "examples/python/sign_api_tester_plugin/src/"
+                "endstone_sign_tester/default-config.toml"
+            ): b"schema = 1\n",
+        }
+        for relative, payload in qualification_files.items():
+            path = stage / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(payload)
+        wheel = stage / "plugins" / "endstone_sign_tester-0.2.0a7-cp314-cp314-win_amd64.whl"
+        dist_info = "endstone_sign_tester-0.2.0a7.dist-info"
         files = {
             "endstone_sign_tester/__init__.py": b"",
             "endstone_sign_tester/plugin.py": b"",
@@ -72,7 +88,7 @@ class SignReleaseToolTests(unittest.TestCase):
             "endstone_sign/service.py": b"",
             f"{dist_info}/METADATA": (
                 b"Metadata-Version: 2.4\nName: endstone-sign-tester\n"
-                b"Version: 0.2.0a6\nRequires-Python: ==3.14.*\n"
+                b"Version: 0.2.0a7\nRequires-Python: ==3.14.*\n"
                 b"Requires-Dist: endstone==0.11.6\n\n"
             ),
             f"{dist_info}/WHEEL": (
@@ -123,7 +139,7 @@ class SignReleaseToolTests(unittest.TestCase):
                 "endstone_sign_bds_1_26_33.dll",
                 f"{stem}.zip",
                 f"{stem}.sha256",
-                "endstone_sign_tester-0.2.0a6-cp314-cp314-win_amd64.whl",
+                "endstone_sign_tester-0.2.0a7-cp314-cp314-win_amd64.whl",
             }
             self.assertEqual({path.name for path in release.iterdir()}, expected)
             archive = release / f"{stem}.zip"
@@ -237,8 +253,8 @@ class SignReleaseToolTests(unittest.TestCase):
                 "endstone_sign_bds_1_26_33.dll",
                 f"{stem}-windows-x64.zip",
                 f"{stem}-windows-x64.sha256",
-                "endstone_sign_tester-0.2.0a6-cp314-cp314-linux_x86_64.whl",
-                "endstone_sign_tester-0.2.0a6-cp314-cp314-win_amd64.whl",
+                "endstone_sign_tester-0.2.0a7-cp314-cp314-linux_x86_64.whl",
+                "endstone_sign_tester-0.2.0a7-cp314-cp314-win_amd64.whl",
             }
             for name in names:
                 (release / name).write_bytes(b"x")

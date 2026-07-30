@@ -11,17 +11,22 @@ from endstone.plugin import Plugin
 
 from ._bridge_loader import import_live_bridge
 from .automation import (
+    STAGE_EVIDENCE_PROBES,
     add_step as add_matrix_step,
+    apply_stage_report as apply_matrix_stage_report,
     build_cases as build_matrix_cases,
+    build_run_probe_plan,
     config_sha256 as matrix_config_sha256,
     finish_run as finish_matrix_run,
     install_default_config,
+    load_acceptance_config,
     latest_report_path as latest_matrix_report_path,
     load_config as load_matrix_config,
     load_latest_report as load_latest_matrix_report,
     new_run_report,
     refresh_summary as refresh_matrix_summary,
     refresh_coverage as refresh_matrix_coverage,
+    refresh_qualification as refresh_matrix_qualification,
     save_run_report,
     utc_now as matrix_utc_now,
     validate_config as validate_matrix_config,
@@ -41,11 +46,27 @@ from .report import (
 )
 
 
+RUN_PROBE_PHASES = (
+    "capture_filtered_text",
+    "capture_text_object",
+    "capture_owner_xuid",
+    "capture_hide_glow_outline",
+    "capture_persist_formatting",
+    "capture_editor_lock",
+    "capture_editor_unlock",
+    "capture_api_edit_event_cancelled",
+    "capture_replace",
+    "capture_clone",
+    "capture_move",
+    "capture_atomic_rollback",
+)
+
+
 class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a6"
+    version = "0.2.0a7"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -83,6 +104,11 @@ class SignApiTesterPlugin(Plugin):
                     "/signprobe (run)<action: SignProbeRunAction> "
                     "<x: int> <y: int> <z: int> "
                     "(confirm)<confirmation: SignProbeRunConfirm>"
+                ),
+                (
+                    "/signprobe (accept)<action: SignProbeAcceptAction> "
+                    "<x: int> <y: int> <z: int> "
+                    "(confirm)<confirmation: SignProbeAcceptConfirm>"
                 ),
                 "/signprobe (runstatus)<action: SignProbeRunStatusAction>",
                 "/signprobe (cancel)<action: SignProbeCancelAction>",
@@ -311,6 +337,56 @@ class SignApiTesterPlugin(Plugin):
             return None, {"status": "ambiguous", **discovery}
         return candidates[0], {"status": "selected", **discovery}
 
+    @staticmethod
+    def _discover_tester_wheel(
+        working_directory: Path,
+        version: str,
+        executable: Path | None = None,
+    ) -> tuple[Path | None, dict[str, Any]]:
+        platform_tag = "win_amd64" if sys.platform == "win32" else "linux_x86_64"
+        pattern = (
+            f"endstone_sign_tester-{version}-cp314-cp314-{platform_tag}.whl"
+        )
+
+        def normalized(path: Path) -> Path:
+            try:
+                return path.resolve(strict=False)
+            except OSError:
+                return path.absolute()
+
+        working_directory = normalized(working_directory)
+        roots = [working_directory / "plugins"]
+        if executable is not None:
+            roots.append(normalized(executable).parent / "plugins")
+        unique_roots: dict[Path, Path] = {}
+        for root in roots:
+            unique_roots.setdefault(normalized(root), root)
+        unique_candidates: dict[Path, Path] = {}
+        for root in unique_roots.values():
+            for path in root.rglob(pattern):
+                if path.is_file():
+                    unique_candidates.setdefault(normalized(path), path)
+        candidates = sorted(
+            unique_candidates.values(), key=lambda path: path.as_posix()
+        )
+
+        def display(path: Path) -> str:
+            try:
+                return normalized(path).relative_to(working_directory).as_posix()
+            except ValueError:
+                return normalized(path).as_posix()
+
+        discovery = {
+            "pattern": f"plugins/**/{pattern}",
+            "roots": [display(root) for root in unique_roots.values()],
+            "candidates": [display(path) for path in candidates],
+        }
+        if not candidates:
+            return None, {"status": "not_found", **discovery}
+        if len(candidates) > 1:
+            return None, {"status": "ambiguous", **discovery}
+        return candidates[0], {"status": "selected", **discovery}
+
     def _binary_evidence(self) -> dict[str, Any]:
         server_candidates = [
             Path.cwd()
@@ -337,10 +413,19 @@ class SignApiTesterPlugin(Plugin):
         if plugin is not None:
             plugin_sha256 = file_sha256(plugin)
             discovery["sha256"] = plugin_sha256
+        tester_wheel, tester_discovery = self._discover_tester_wheel(
+            Path.cwd(), self.version, server_executable or Path(sys.executable)
+        )
+        tester_wheel_sha256 = ""
+        if tester_wheel is not None:
+            tester_wheel_sha256 = file_sha256(tester_wheel)
+            tester_discovery["sha256"] = tester_wheel_sha256
         return {
             "server_executable_sha256": server_sha256,
             "plugin_sha256": plugin_sha256,
             "plugin_discovery": discovery,
+            "tester_wheel_sha256": tester_wheel_sha256,
+            "tester_wheel_discovery": tester_discovery,
         }
 
     @staticmethod
@@ -567,6 +652,9 @@ class SignApiTesterPlugin(Plugin):
             "/signprobe run <x> <y> <z> confirm - automated 12-material x 4-form matrix"
         )
         sender.send_message(
+            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.7 qualification"
+        )
+        sender.send_message(
             "/signprobe runstatus; /signprobe cancel; /signprobe cleanup confirm; "
             "/signprobe config"
         )
@@ -612,6 +700,7 @@ class SignApiTesterPlugin(Plugin):
             "server_executable_sha256"
         ]
         report["plugin_sha256"] = binary_evidence["plugin_sha256"]
+        report["tester_wheel_sha256"] = binary_evidence["tester_wheel_sha256"]
         discovery = binary_evidence["plugin_discovery"]
         append_invocation(
             report,
@@ -629,6 +718,18 @@ class SignApiTesterPlugin(Plugin):
                 "Multiple native Sign API plugin binaries were found; plugin_sha256 remains "
                 "empty until exactly one candidate remains: "
                 + ", ".join(discovery["candidates"])
+            )
+        tester_discovery = binary_evidence["tester_wheel_discovery"]
+        append_invocation(
+            report,
+            "tester_wheel_discovery",
+            {"pattern": tester_discovery["pattern"]},
+            tester_discovery,
+        )
+        if tester_discovery["status"] != "selected":
+            sender.send_message(
+                "Exactly one matching tester wheel must remain under plugins; "
+                f"discovery status is {tester_discovery['status']}."
             )
         save_report(self._path(), report)
         sender.send_message(
@@ -866,8 +967,23 @@ class SignApiTesterPlugin(Plugin):
         report = self._load(sender)
         if report is None:
             return True
+        try:
+            matrix = load_latest_matrix_report(Path(self.data_folder))
+        except Exception:
+            matrix = {}
+        if (
+            matrix.get("mode") == "full_system_acceptance"
+            and report.get("matrix_run_id") == matrix.get("run_id")
+            and probe not in STAGE_EVIDENCE_PROBES
+        ):
+            sender.send_message(
+                f"{probe} is derived from executable matrix evidence in acceptance mode; "
+                "it cannot be hand-recorded."
+            )
+            return True
         record_result(report, probe, raw_passed == "true", " ".join(args[2:]))
         save_report(self._path(), report)
+        self._sync_stage_to_acceptance(report)
         sender.send_message(f"Recorded {probe}: passed={raw_passed}")
         return True
 
@@ -889,6 +1005,7 @@ class SignApiTesterPlugin(Plugin):
             return True
         failures = finish_report(report)
         save_report(self._path(), report)
+        self._sync_stage_to_acceptance(report)
         if failures:
             preview = ", ".join(failures[:12])
             suffix = f" (+{len(failures) - 12} more)" if len(failures) > 12 else ""
@@ -896,6 +1013,44 @@ class SignApiTesterPlugin(Plugin):
         else:
             sender.send_message(f"Stage report complete and ready to return: {self._path()}")
         return True
+
+    def _sync_stage_to_acceptance(self, stage_report: dict[str, Any]) -> None:
+        path = latest_matrix_report_path(Path(self.data_folder))
+        if not path.is_file():
+            return
+        try:
+            matrix = load_latest_matrix_report(Path(self.data_folder))
+            if matrix.get("mode") != "full_system_acceptance":
+                return
+            apply_matrix_stage_report(matrix, stage_report)
+            save_run_report(Path(self.data_folder), matrix)
+        except Exception as error:
+            self.logger.error(f"Could not synchronize stage evidence: {error}")
+
+    def _sync_acceptance_to_stage(self, matrix: dict[str, Any]) -> None:
+        if matrix.get("mode") != "full_system_acceptance":
+            return
+        try:
+            stage = load_report(self._path())
+            # Validate the complete session binding before touching either
+            # report. apply_stage_report projects only the seven genuinely
+            # client/operator/restart probes.
+            apply_matrix_stage_report(matrix, stage)
+            for probe, entry in dict(matrix.get("coverage") or {}).items():
+                if probe in STAGE_EVIDENCE_PROBES:
+                    continue
+                status = str(dict(entry).get("status") or "pending")
+                evidence = str(dict(entry).get("evidence") or "not run")
+                record_result(
+                    stage,
+                    probe,
+                    status == "passed",
+                    f"matrix {matrix['run_id']} [{status}]: {evidence}",
+                )
+            save_report(self._path(), stage)
+            apply_matrix_stage_report(matrix, stage)
+        except Exception as error:
+            self.logger.error(f"Could not project matrix evidence to stage report: {error}")
 
     def _handle_path(self, sender: CommandSender, args: list[str]) -> bool:
         sender.send_message(f"Stage report path: {self._path()}")
@@ -997,8 +1152,17 @@ class SignApiTesterPlugin(Plugin):
         return failures
 
     def _handle_run(self, sender: CommandSender, args: list[str]) -> bool:
+        return self._start_matrix(sender, args, acceptance_mode=False)
+
+    def _handle_accept(self, sender: CommandSender, args: list[str]) -> bool:
+        return self._start_matrix(sender, args, acceptance_mode=True)
+
+    def _start_matrix(
+        self, sender: CommandSender, args: list[str], *, acceptance_mode: bool
+    ) -> bool:
         if len(args) != 4 or args[3].casefold() != "confirm":
-            sender.send_message("Usage: /signprobe run <x> <y> <z> confirm")
+            action = "accept" if acceptance_mode else "run"
+            sender.send_message(f"Usage: /signprobe {action} <x> <y> <z> confirm")
             return True
         if self.matrix_context is not None:
             sender.send_message("A Sign matrix run or cleanup is already active.")
@@ -1016,8 +1180,16 @@ class SignApiTesterPlugin(Plugin):
         if bridge is None:
             return True
         try:
-            config_file = install_default_config(Path(self.data_folder))
-            config = load_matrix_config(config_file)
+            if acceptance_mode:
+                # Qualification is deliberately not configurable down to a
+                # smaller passing surface. It always attempts the complete
+                # material/form set, keeps going after failures, enables every
+                # implemented advanced phase, and defers cleanup until after
+                # reconnect/restart evidence has been collected.
+                config = load_acceptance_config()
+            else:
+                config_file = install_default_config(Path(self.data_folder))
+                config = load_matrix_config(config_file)
             bridge_status = dict(bridge.status(self.server))
             report = new_run_report(
                 plugin_version=self.version,
@@ -1027,10 +1199,52 @@ class SignApiTesterPlugin(Plugin):
                 anchor=anchor,
                 config=config,
                 bridge_status=bridge_status,
+                acceptance_mode=acceptance_mode,
             )
             report.update(self._binary_evidence())
             report["world_name"] = str(self.server.level.name)
             report["world_seed"] = str(self.server.level.seed)
+            if acceptance_mode:
+                stage_target = dict(report["cases"][0]["sign"])
+                stage = new_report(
+                    platform=self._platform(),
+                    operator=self._sender_name(sender),
+                    dimension=dimension_name,
+                    x=stage_target["x"],
+                    y=stage_target["y"],
+                    z=stage_target["z"],
+                )
+                stage["tester_version"] = self.version
+                stage["matrix_run_id"] = report["run_id"]
+                stage["matrix_config_sha256"] = report["config_sha256"]
+                stage["world_name"] = report["world_name"]
+                stage["server_executable_sha256"] = report[
+                    "server_executable_sha256"
+                ]
+                stage["plugin_sha256"] = report["plugin_sha256"]
+                stage["tester_wheel_sha256"] = report["tester_wheel_sha256"]
+                stage["world_seed"] = report["world_seed"]
+                append_invocation(
+                    stage,
+                    "full_system_acceptance_started",
+                    {
+                        "anchor": anchor,
+                        "stage_target": stage_target,
+                        "matrix_run_id": report["run_id"],
+                    },
+                    {"bridge_status": bridge_status},
+                )
+                save_report(self._path(), stage)
+                report["stage_report"] = {
+                    "passed": False,
+                    "completed_at_utc": "",
+                    "server_executable_sha256": stage[
+                        "server_executable_sha256"
+                    ],
+                    "plugin_sha256": stage["plugin_sha256"],
+                    "tester_wheel_sha256": stage["tester_wheel_sha256"],
+                }
+                report["stage_report_path"] = str(self._path())
         except Exception as error:
             sender.send_message(f"Could not plan the Sign matrix: {error}")
             return True
@@ -1038,7 +1252,10 @@ class SignApiTesterPlugin(Plugin):
         identity_complete = (
             len(str(report.get("server_executable_sha256") or "")) == 64
             and len(str(report.get("plugin_sha256") or "")) == 64
+            and len(str(report.get("tester_wheel_sha256") or "")) == 64
             and dict(report.get("plugin_discovery") or {}).get("status") == "selected"
+            and dict(report.get("tester_wheel_discovery") or {}).get("status")
+            == "selected"
             and bool(str(report.get("world_name") or ""))
             and bool(str(report.get("world_seed") or ""))
         )
@@ -1051,20 +1268,22 @@ class SignApiTesterPlugin(Plugin):
                 "server_executable_sha256": report["server_executable_sha256"],
                 "plugin_sha256": report["plugin_sha256"],
                 "plugin_discovery": report["plugin_discovery"],
+                "tester_wheel_sha256": report["tester_wheel_sha256"],
+                "tester_wheel_discovery": report["tester_wheel_discovery"],
                 "world_name": report["world_name"],
                 "world_seed": report["world_seed"],
             },
             reason=(
-                "server/plugin SHA-256 and world seed were recorded"
+                "server/plugin/tester-wheel SHA-256 and world seed were recorded"
                 if identity_complete
-                else "server/plugin identity evidence is incomplete; no mutation was attempted"
+                else "server/plugin/tester-wheel identity evidence is incomplete; no mutation was attempted"
             ),
         )
         if not identity_complete:
             finish_matrix_run(report, "failed")
             path = save_run_report(Path(self.data_folder), report)
             sender.send_message(
-                "Matrix stopped before mutation because server/plugin identity evidence "
+                "Matrix stopped before mutation because server/plugin/tester-wheel identity evidence "
                 "was incomplete. Remove duplicate plugins or fix the server plugin path."
             )
             sender.send_message(f"Matrix report: {path}")
@@ -1094,6 +1313,7 @@ class SignApiTesterPlugin(Plugin):
                 "front_and_back",
                 "per_line_write",
             ],
+            response=current_status,
             reason=reason,
         )
         if not ready:
@@ -1144,6 +1364,24 @@ class SignApiTesterPlugin(Plugin):
                                 "case_id": case["id"],
                                 "role": role,
                                 "location": dict(location),
+                                "type": str(block.type),
+                            }
+                        )
+            for name in ("clone", "move"):
+                scratch = dict(dict(report.get("run_probe") or {}).get(name) or {})
+                for role in ("sign", "support"):
+                    location = dict(scratch.get(role) or {})
+                    if not location:
+                        continue
+                    block = dimension.get_block_at(
+                        location["x"], location["y"], location["z"]
+                    )
+                    if str(block.type) != "minecraft:air":
+                        conflicts.append(
+                            {
+                                "case_id": f"run-probe-{name}",
+                                "role": role,
+                                "location": location,
                                 "type": str(block.type),
                             }
                         )
@@ -1199,9 +1437,15 @@ class SignApiTesterPlugin(Plugin):
             )
             return True
         sender.send_message(
-            f"Started {len(report['cases'])}-case Sign matrix. One operation runs per "
-            f"scheduled tick; report: {path}"
+            f"Started {len(report['cases'])}-case "
+            f"{'full-system qualification' if acceptance_mode else 'Sign matrix'}. "
+            f"One operation runs per scheduled tick; report: {path}"
         )
+        if acceptance_mode:
+            sender.send_message(
+                "Qualification cannot pass with skips, closed capabilities, pending client/"
+                "reconnect/restart probes, or incomplete ownership cleanup."
+            )
         return True
 
     def _handle_runstatus(self, sender: CommandSender, args: list[str]) -> bool:
@@ -1230,6 +1474,13 @@ class SignApiTesterPlugin(Plugin):
             f"cleanup={dict(report.get('cleanup') or {}).get('state', 'unknown')}"
         )
         self._send_json(sender, "Matrix summary", report.get("summary", {}))
+        if report.get("mode") == "full_system_acceptance":
+            qualification = dict(report.get("qualification") or {})
+            sender.send_message(
+                "Qualification eligible="
+                f"{str(qualification.get('eligible') is True).lower()}, "
+                f"blockers={len(list(qualification.get('blockers') or []))}"
+            )
         sender.send_message(f"Matrix report: {path}")
         return True
 
@@ -1264,8 +1515,10 @@ class SignApiTesterPlugin(Plugin):
 
         try:
             report_config = validate_matrix_config(dict(report.get("config") or {}))
-            current_config = load_matrix_config(
-                install_default_config(Path(self.data_folder))
+            current_config = (
+                load_acceptance_config()
+                if report.get("mode") == "full_system_acceptance"
+                else load_matrix_config(install_default_config(Path(self.data_folder)))
             )
         except Exception as error:
             return f"matrix configuration could not be validated: {error}"
@@ -1273,7 +1526,11 @@ class SignApiTesterPlugin(Plugin):
         if report_hash != str(report.get("config_sha256") or ""):
             return "report configuration hash is invalid"
         if report_hash != matrix_config_sha256(current_config):
-            return "matrix-config.toml changed after this run"
+            return (
+                "packaged acceptance profile differs from this run"
+                if report.get("mode") == "full_system_acceptance"
+                else "matrix-config.toml changed after this run"
+            )
 
         anchor = report.get("anchor")
         if (
@@ -1317,19 +1574,65 @@ class SignApiTesterPlugin(Plugin):
                 if type(revision) is not int or not 0 <= revision <= 0xFFFFFFFFFFFFFFFF:
                     return f"report {field} is invalid"
 
+        if report.get("mode") == "full_system_acceptance":
+            try:
+                expected_probe = build_run_probe_plan(
+                    report_config, dimension_name, anchor
+                )
+            except Exception as error:
+                return f"run-probe plan could not be reconstructed: {error}"
+            saved_probe = report.get("run_probe")
+            if not isinstance(saved_probe, dict):
+                return "run-probe plan is invalid"
+            if saved_probe.get("source_case_id") != expected_probe["source_case_id"]:
+                return "run-probe source differs from the reconstructed plan"
+            for name in ("clone", "move"):
+                saved_scratch = saved_probe.get(name)
+                expected_scratch = expected_probe[name]
+                if not isinstance(saved_scratch, dict) or any(
+                    saved_scratch.get(field) != expected_scratch[field]
+                    for field in ("dimension", "sign", "support")
+                ):
+                    return f"run-probe {name} scratch plan differs from reconstruction"
+                if type(saved_scratch.get("owned_sign")) is not bool or type(
+                    saved_scratch.get("owned_support")
+                ) is not bool:
+                    return f"run-probe {name} ownership flags are invalid"
+                revision = saved_scratch.get("expected_revision")
+                if type(revision) is not int or not 0 <= revision <= 0xFFFFFFFFFFFFFFFF:
+                    return f"run-probe {name} expected revision is invalid"
+                if not isinstance(saved_scratch.get("expected_snapshot"), dict):
+                    return f"run-probe {name} expected snapshot is invalid"
+            saved_guard = saved_probe.get("atomic_guard")
+            expected_guard = expected_probe["atomic_guard"]
+            if not isinstance(saved_guard, dict) or any(
+                saved_guard.get(field) != expected_guard[field]
+                for field in ("dimension", "location", "block_identifier")
+            ):
+                return "atomic rollback guard differs from the reconstructed plan"
+            if type(saved_guard.get("owned")) is not bool:
+                return "atomic rollback guard ownership is invalid"
+
         current_evidence = self._binary_evidence()
         if (
             len(str(report.get("server_executable_sha256") or "")) != 64
             or len(str(report.get("plugin_sha256") or "")) != 64
+            or len(str(report.get("tester_wheel_sha256") or "")) != 64
             or dict(report.get("plugin_discovery") or {}).get("status") != "selected"
+            or dict(report.get("tester_wheel_discovery") or {}).get("status")
+            != "selected"
             or str(report.get("server_executable_sha256") or "")
             != str(current_evidence.get("server_executable_sha256") or "")
             or str(report.get("plugin_sha256") or "")
             != str(current_evidence.get("plugin_sha256") or "")
+            or str(report.get("tester_wheel_sha256") or "")
+            != str(current_evidence.get("tester_wheel_sha256") or "")
             or dict(current_evidence.get("plugin_discovery") or {}).get("status")
             != "selected"
+            or dict(current_evidence.get("tester_wheel_discovery") or {}).get("status")
+            != "selected"
         ):
-            return "server/plugin binary identity differs from the recorded run"
+            return "server/plugin/tester-wheel identity differs from the recorded run"
         return ""
 
     def _handle_cleanup(self, sender: CommandSender, args: list[str]) -> bool:
@@ -1365,6 +1668,7 @@ class SignApiTesterPlugin(Plugin):
             "conflicts": [],
             "completed_at_utc": "",
         }
+        report.pop("run_probe_cleanup_completed_at_utc", None)
         report["cursor"] = {"case_index": 0, "phase": "cleanup"}
         save_run_report(Path(self.data_folder), report)
         self.matrix_context = {
@@ -1426,6 +1730,9 @@ class SignApiTesterPlugin(Plugin):
         else:
             report["cleanup"]["state"] = state
             report["cleanup"]["completed_at_utc"] = matrix_utc_now()
+            refresh_matrix_coverage(report)
+            refresh_matrix_qualification(report)
+        self._sync_acceptance_to_stage(report)
         path = save_run_report(Path(self.data_folder), report)
         self.matrix_task = None
         self.matrix_context = None
@@ -1529,6 +1836,7 @@ class SignApiTesterPlugin(Plugin):
             "capture_wax",
             "capture_unwax",
             "finish_case",
+            *RUN_PROBE_PHASES,
         }
         if phase in checkpoint_phases:
             save_run_report(Path(self.data_folder), report)
@@ -1548,6 +1856,11 @@ class SignApiTesterPlugin(Plugin):
         next_index = case_index + 1
         if next_index >= len(report["cases"]):
             self._matrix_finalize_inline_cleanup(report)
+            if report.get("mode") == "full_system_acceptance":
+                self._matrix_set_cursor(
+                    context, len(report["cases"]), RUN_PROBE_PHASES[0]
+                )
+                return
             outcome = "completed" if not report["summary"]["cases_failed"] else "failed"
             self._matrix_terminal(
                 "completed",
@@ -1601,6 +1914,12 @@ class SignApiTesterPlugin(Plugin):
         case_index = int(cursor["case_index"])
         phase = str(cursor["phase"])
         if case_index >= len(report["cases"]):
+            if (
+                report.get("mode") == "full_system_acceptance"
+                and phase in RUN_PROBE_PHASES
+            ):
+                self._matrix_run_probe_tick(context, phase)
+                return
             self._matrix_terminal("completed", "Sign matrix completed.")
             return
         case = report["cases"][case_index]
@@ -2193,6 +2512,957 @@ class SignApiTesterPlugin(Plugin):
             )
         self._matrix_set_cursor(context, case_index, next_phase)
 
+    @staticmethod
+    def _matrix_snapshot_core(snapshot: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: snapshot.get(key)
+            for key in (
+                "block_identifier",
+                "kind",
+                "states",
+                "front",
+                "back",
+                "waxed",
+                "locked_for_editing_by",
+                "locked_for_editing_xuid",
+                "remote_profanity_filter_enabled",
+                "local_profanity_filter_enabled",
+                "movable",
+            )
+        }
+
+    @staticmethod
+    def _matrix_probe_source(report: dict[str, Any]) -> dict[str, Any]:
+        source_id = str(dict(report.get("run_probe") or {}).get("source_case_id") or "")
+        for case in list(report.get("cases") or []):
+            if case.get("id") == source_id:
+                return case
+        raise ValueError("run-probe source case is missing")
+
+    def _matrix_probe_preflight(
+        self,
+        context: dict[str, Any],
+        operation: str,
+        required: tuple[str, ...],
+    ) -> bool:
+        report = context["report"]
+        ready, reason, _ = self._mutation_preflight(
+            context["bridge"], self.server, operation, required
+        )
+        if ready:
+            return True
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="skipped",
+            required_capabilities=required,
+            mutation_attempted=False,
+            reason=reason,
+        )
+        return False
+
+    def _matrix_run_probe_tick(
+        self, context: dict[str, Any], phase: str
+    ) -> None:
+        if phase in {
+            "capture_filtered_text",
+            "capture_text_object",
+            "capture_owner_xuid",
+            "capture_hide_glow_outline",
+            "capture_persist_formatting",
+        }:
+            self._matrix_run_extended_text_probe(context, phase)
+        elif phase == "capture_editor_lock":
+            self._matrix_run_editor_lock_probe(context)
+        elif phase == "capture_editor_unlock":
+            self._matrix_run_editor_unlock_probe(context)
+        elif phase == "capture_api_edit_event_cancelled":
+            self._matrix_run_api_cancel_probe(context)
+        elif phase == "capture_replace":
+            self._matrix_run_replace_probe(context)
+        elif phase == "capture_clone":
+            self._matrix_run_clone_probe(context)
+        elif phase == "capture_move":
+            self._matrix_run_move_probe(context)
+        elif phase == "capture_atomic_rollback":
+            self._matrix_run_atomic_probe(context)
+        else:
+            raise ValueError(f"unknown full-system run-probe phase: {phase}")
+
+        refresh_matrix_coverage(context["report"])
+        index = RUN_PROBE_PHASES.index(phase)
+        if index + 1 < len(RUN_PROBE_PHASES):
+            self._matrix_set_cursor(
+                context, len(context["report"]["cases"]), RUN_PROBE_PHASES[index + 1]
+            )
+            return
+        self._matrix_terminal(
+            "completed",
+            "Full-system matrix operations finished; guided evidence and cleanup remain.",
+        )
+
+    def _matrix_run_extended_text_probe(
+        self, context: dict[str, Any], operation: str
+    ) -> None:
+        feature = {
+            "capture_filtered_text": "filtered_text",
+            "capture_text_object": "text_objects",
+            "capture_owner_xuid": "owner_xuid",
+            "capture_hide_glow_outline": "hide_glow_outline",
+            "capture_persist_formatting": "persist_formatting",
+        }[operation]
+        required = ("capture", "read_text", "write_text", feature)
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        before = self._matrix_capture(context, case)
+        expected_revision = int(case.get("expected_revision") or 0)
+        if (
+            not case.get("owned_sign")
+            or not self._matrix_snapshot_matches(before, case)
+            or int(before.get("revision") or 0) != expected_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"before": before},
+                reason="run-probe source does not match its runner-owned revision",
+            )
+            return
+        front_before = dict(before.get("front") or {})
+        values: dict[str, Any] = {
+            "filtered_message": None,
+            "text_object": None,
+            "message_is_text_object": None,
+            "owner_xuid": None,
+            "hide_glow_outline": None,
+            "persist_formatting": None,
+        }
+        expected_fields: dict[str, Any]
+        restore_fields: dict[str, Any]
+        if operation == "capture_filtered_text":
+            values["filtered_message"] = "a7-filter"
+            expected_fields = {"filtered_message": "a7-filter"}
+            restore_fields = {
+                "filtered_message": str(front_before.get("filtered_message") or "")
+            }
+        elif operation == "capture_text_object":
+            values["text_object"] = '{"text":"a7"}'
+            values["message_is_text_object"] = True
+            expected_fields = {
+                "text_object": '{"text":"a7"}',
+                "message_is_text_object": True,
+            }
+            restore_fields = {
+                "text_object": str(front_before.get("text_object") or ""),
+                "message_is_text_object": bool(
+                    front_before.get("message_is_text_object")
+                ),
+            }
+        elif operation == "capture_owner_xuid":
+            values["owner_xuid"] = "a7-owner"
+            expected_fields = {"owner_xuid": "a7-owner"}
+            restore_fields = {"owner_xuid": str(front_before.get("owner_xuid") or "")}
+        elif operation == "capture_hide_glow_outline":
+            desired = not bool(front_before.get("hide_glow_outline"))
+            values["hide_glow_outline"] = desired
+            expected_fields = {"hide_glow_outline": desired}
+            restore_fields = {
+                "hide_glow_outline": bool(front_before.get("hide_glow_outline"))
+            }
+        else:
+            desired = not bool(front_before.get("persist_formatting", True))
+            values["persist_formatting"] = desired
+            expected_fields = {"persist_formatting": desired}
+            restore_fields = {
+                "persist_formatting": bool(
+                    front_before.get("persist_formatting", True)
+                )
+            }
+
+        sign = case["sign"]
+        bridge = context["bridge"]
+
+        def call(fields: dict[str, Any], revision: int) -> dict[str, Any]:
+            arguments = {**values, **fields}
+            return dict(
+                bridge.set_extended_text(
+                    self.server,
+                    case["dimension"],
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                    "front",
+                    arguments["filtered_message"],
+                    arguments["text_object"],
+                    arguments["message_is_text_object"],
+                    arguments["owner_xuid"],
+                    arguments["hide_glow_outline"],
+                    arguments["persist_formatting"],
+                    False,
+                    revision,
+                )
+            )
+
+        try:
+            applied = call({}, expected_revision)
+        except Exception as error:
+            applied = {"ok": False, "status": "exception", "message": str(error)}
+        applied_capture = self._matrix_capture(context, case)
+        applied_revision = int(applied_capture.get("revision") or applied.get("revision") or 0)
+        try:
+            restored = (
+                call(restore_fields, applied_revision)
+                if applied.get("ok") is True and applied_revision > 0
+                else {"ok": False, "status": "not_attempted"}
+            )
+        except Exception as error:
+            restored = {"ok": False, "status": "exception", "message": str(error)}
+        restored_capture = self._matrix_capture(context, case)
+        restored_revision = int(restored_capture.get("revision") or 0)
+        applied_front = dict(applied_capture.get("front") or {})
+        passed = (
+            applied.get("ok") is True
+            and restored.get("ok") is True
+            and all(applied_front.get(key) == value for key, value in expected_fields.items())
+            and self._matrix_snapshot_core(restored_capture)
+            == self._matrix_snapshot_core(before)
+            and int(restored.get("revision") or 0) == restored_revision
+        )
+        if passed:
+            case["expected_revision"] = restored_revision
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"target": dict(sign), "values": expected_fields},
+            response={
+                "apply": applied,
+                "applied_capture": applied_capture,
+                "restore": restored,
+                "restored_capture": restored_capture,
+            },
+            before=before,
+            after=restored_capture,
+            reason=(
+                f"{feature} mutated, read back, and restored exactly"
+                if passed
+                else f"{feature} mutation/readback/restore did not complete exactly"
+            ),
+        )
+
+    def _matrix_run_editor_lock_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_editor_lock"
+        required = ("capture", "editor_lock")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        before = self._matrix_capture(context, case)
+        expected_revision = int(case.get("expected_revision") or 0)
+        if (
+            case.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(before, case)
+            or int(before.get("revision") or 0) != expected_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"before": before},
+                reason="editor-lock source revision changed before mutation",
+            )
+            return
+        sign = case["sign"]
+        try:
+            response = dict(
+                context["bridge"].set_editor_lock(
+                    self.server,
+                    case["dimension"],
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                    2147483007,
+                    "a7-lock",
+                    False,
+                    expected_revision,
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        after = self._matrix_capture(context, case)
+        after_revision = int(after.get("revision") or 0)
+        passed = (
+            response.get("ok") is True
+            and int(response.get("revision") or 0) == after_revision
+            and after.get("locked_for_editing_by") == 2147483007
+            and after.get("locked_for_editing_xuid") == "a7-lock"
+        )
+        if passed:
+            case["expected_revision"] = after_revision
+        report["run_probe"]["lock_restore"] = {
+            "locked_for_editing_by": int(
+                before.get("locked_for_editing_by")
+                if before.get("locked_for_editing_by") is not None
+                else -1
+            ),
+            "locked_for_editing_xuid": before.get("locked_for_editing_xuid"),
+            "snapshot": before,
+        }
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"locked_for_editing_by": 2147483007, "xuid": "a7-lock"},
+            response={"apply": response, "capture": after},
+            before=before,
+            after=after,
+            reason="editor lock applied and read back" if passed else "editor lock probe failed",
+        )
+
+    def _matrix_run_editor_unlock_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_editor_unlock"
+        required = ("capture", "editor_lock")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        restore = dict(dict(report.get("run_probe") or {}).get("lock_restore") or {})
+        before_lock = dict(restore.get("snapshot") or {})
+        current = self._matrix_capture(context, case)
+        if (
+            not before_lock
+            or case.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(current, case)
+            or int(current.get("revision") or 0)
+            != int(case.get("expected_revision") or 0)
+            or current.get("locked_for_editing_xuid") != "a7-lock"
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"current": current},
+                reason="verified runner editor lock is unavailable for unlock",
+            )
+            return
+        sign = case["sign"]
+        xuid = restore.get("locked_for_editing_xuid")
+        try:
+            response = dict(
+                context["bridge"].set_editor_lock(
+                    self.server,
+                    case["dimension"],
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                    int(
+                        restore.get("locked_for_editing_by")
+                        if restore.get("locked_for_editing_by") is not None
+                        else -1
+                    ),
+                    "" if xuid is None else str(xuid),
+                    False,
+                    int(case.get("expected_revision") or 0),
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        after = self._matrix_capture(context, case)
+        after_revision = int(after.get("revision") or 0)
+        passed = (
+            response.get("ok") is True
+            and int(response.get("revision") or 0) == after_revision
+            and self._matrix_snapshot_core(after) == self._matrix_snapshot_core(before_lock)
+        )
+        if passed:
+            case["expected_revision"] = after_revision
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"restore": restore},
+            response={"apply": response, "capture": after},
+            before=current,
+            after=after,
+            reason="editor lock cleared and original state restored" if passed else "editor unlock probe failed",
+        )
+
+    def _matrix_run_api_cancel_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_api_edit_event_cancelled"
+        required = ("capture", "api_edit_events")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        before = self._matrix_capture(context, case)
+        expected_revision = int(case.get("expected_revision") or 0)
+        if (
+            case.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(before, case)
+            or int(before.get("revision") or 0) != expected_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"before": before},
+                reason="API-cancellation source does not match its runner-owned revision",
+            )
+            return
+        sign = case["sign"]
+        try:
+            response = dict(
+                context["bridge"].probe_api_event_cancellation(
+                    self.server,
+                    case["dimension"],
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                    expected_revision,
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        after = self._matrix_capture(context, case)
+        passed = (
+            response.get("ok") is True
+            and response.get("event_observed") is True
+            and response.get("event_cancelled") is True
+            and response.get("state_unchanged") is True
+            and response.get("listener_removed") is True
+            and int(after.get("revision") or 0) == int(before.get("revision") or 0)
+            and self._matrix_snapshot_core(after) == self._matrix_snapshot_core(before)
+        )
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"target": dict(sign), "expected_revision": case.get("expected_revision")},
+            response={"probe": response, "capture": after},
+            before=before,
+            after=after,
+            reason=(
+                "API BeforeChange was observed, cancelled, and left state unchanged"
+                if passed
+                else "API edit cancellation evidence was incomplete"
+            ),
+        )
+
+    def _matrix_run_replace_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_replace"
+        required = ("capture", "replace")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        before = self._matrix_capture(context, case)
+        expected_revision = int(case.get("expected_revision") or 0)
+        if (
+            case.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(before, case)
+            or int(before.get("revision") or 0) != expected_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"before": before},
+                reason="replacement source does not match its runner-owned revision",
+            )
+            return
+        sign = case["sign"]
+        alternate = (
+            "minecraft:birch_standing_sign"
+            if before.get("block_identifier") == "minecraft:spruce_standing_sign"
+            else "minecraft:spruce_standing_sign"
+        )
+        try:
+            replaced = dict(
+                context["bridge"].replace(
+                    self.server,
+                    case["dimension"],
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                    alternate,
+                    dict(before.get("states") or {}),
+                    False,
+                    expected_revision,
+                )
+            )
+        except Exception as error:
+            replaced = {"ok": False, "status": "exception", "message": str(error)}
+        replaced_capture = self._matrix_capture(context, case)
+        replaced_revision = int(replaced_capture.get("revision") or replaced.get("revision") or 0)
+        try:
+            restored = (
+                dict(
+                    context["bridge"].replace(
+                        self.server,
+                        case["dimension"],
+                        sign["x"],
+                        sign["y"],
+                        sign["z"],
+                        str(before.get("block_identifier") or ""),
+                        dict(before.get("states") or {}),
+                        False,
+                        replaced_revision,
+                    )
+                )
+                if replaced.get("ok") is True and replaced_revision > 0
+                else {"ok": False, "status": "not_attempted"}
+            )
+        except Exception as error:
+            restored = {"ok": False, "status": "exception", "message": str(error)}
+        after = self._matrix_capture(context, case)
+        after_revision = int(after.get("revision") or 0)
+        passed = (
+            replaced.get("ok") is True
+            and replaced_capture.get("block_identifier") == alternate
+            and restored.get("ok") is True
+            and int(restored.get("revision") or 0) == after_revision
+            and self._matrix_snapshot_core(after) == self._matrix_snapshot_core(before)
+        )
+        if passed:
+            case["expected_revision"] = after_revision
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"alternate_identifier": alternate, "target": dict(sign)},
+            response={
+                "replace": replaced,
+                "replace_capture": replaced_capture,
+                "restore": restored,
+                "restored_capture": after,
+            },
+            before=before,
+            after=after,
+            reason="structural replacement read back and restored" if passed else "replace probe failed",
+        )
+
+    def _matrix_create_probe_support(
+        self, report: dict[str, Any], scratch: dict[str, Any]
+    ) -> dict[str, Any]:
+        location = scratch["support"]
+        dimension = self.server.level.get_dimension(scratch["dimension"])
+        block = dimension.get_block_at(location["x"], location["y"], location["z"])
+        before = str(block.type)
+        if before != "minecraft:air":
+            return {"ok": False, "before": before, "after": before}
+        try:
+            block.set_type(report["config"]["support_block"], False)
+            after = str(block.type)
+        except Exception as error:
+            return {"ok": False, "before": before, "error": str(error)}
+        passed = after == report["config"]["support_block"]
+        if passed:
+            scratch["owned_support"] = True
+            save_run_report(Path(self.data_folder), report)
+        return {"ok": passed, "before": before, "after": after}
+
+    def _matrix_capture_location(
+        self, context: dict[str, Any], dimension: str, sign: dict[str, int]
+    ) -> dict[str, Any]:
+        try:
+            return dict(
+                context["bridge"].capture(
+                    self.server,
+                    dimension,
+                    sign["x"],
+                    sign["y"],
+                    sign["z"],
+                )
+            )
+        except Exception as error:
+            return {"found": False, "error": str(error)}
+
+    def _matrix_run_clone_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_clone"
+        required = ("capture", "place", "clone")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        case = self._matrix_probe_source(report)
+        source_before = self._matrix_capture(context, case)
+        expected_source_revision = int(case.get("expected_revision") or 0)
+        if (
+            case.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(source_before, case)
+            or int(source_before.get("revision") or 0)
+            != expected_source_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"source_before": source_before},
+                reason="clone source does not match its runner-owned revision",
+            )
+            return
+        scratch = report["run_probe"]["clone"]
+        support = self._matrix_create_probe_support(report, scratch)
+        if not support.get("ok"):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"support": support},
+                reason="clone scratch support could not be created safely",
+            )
+            return
+        source = case["sign"]
+        destination = scratch["sign"]
+        try:
+            response = dict(
+                context["bridge"].clone(
+                    self.server,
+                    case["dimension"],
+                    source["x"],
+                    source["y"],
+                    source["z"],
+                    destination["x"],
+                    destination["y"],
+                    destination["z"],
+                    False,
+                    False,
+                    expected_source_revision,
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        source_after = self._matrix_capture(context, case)
+        destination_after = self._matrix_capture_location(
+            context, scratch["dimension"], destination
+        )
+        destination_revision = int(destination_after.get("revision") or 0)
+        passed = (
+            response.get("ok") is True
+            and destination_revision > 0
+            and int(response.get("revision") or 0) == destination_revision
+            and self._matrix_snapshot_core(source_after)
+            == self._matrix_snapshot_core(source_before)
+            and int(source_after.get("revision") or 0)
+            == int(source_before.get("revision") or 0)
+            and self._matrix_snapshot_core(destination_after)
+            == self._matrix_snapshot_core(source_before)
+        )
+        if passed:
+            scratch["owned_sign"] = True
+            scratch["expected_revision"] = destination_revision
+            scratch["expected_snapshot"] = destination_after
+            save_run_report(Path(self.data_folder), report)
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"source": dict(source), "destination": dict(destination)},
+            response={
+                "support": support,
+                "clone": response,
+                "source_after": source_after,
+                "destination_after": destination_after,
+            },
+            before=source_before,
+            after=destination_after,
+            reason="clone content and source preservation read back" if passed else "clone probe failed",
+        )
+
+    def _matrix_run_move_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_move"
+        required = ("capture", "place", "remove", "move", "atomic_transactions")
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        clone_scratch = report["run_probe"]["clone"]
+        move_scratch = report["run_probe"]["move"]
+        clone_before = self._matrix_capture_location(
+            context, clone_scratch["dimension"], clone_scratch["sign"]
+        )
+        if (
+            clone_scratch.get("owned_sign") is not True
+            or int(clone_before.get("revision") or 0)
+            != int(clone_scratch.get("expected_revision") or 0)
+            or self._matrix_snapshot_core(clone_before)
+            != self._matrix_snapshot_core(
+                dict(clone_scratch.get("expected_snapshot") or {})
+            )
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"clone_before": clone_before},
+                reason="verified runner-owned clone is unavailable for move",
+            )
+            return
+        support = self._matrix_create_probe_support(report, move_scratch)
+        if not support.get("ok"):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"support": support},
+                reason="move scratch support could not be created safely",
+            )
+            return
+        source = clone_scratch["sign"]
+        destination = move_scratch["sign"]
+        try:
+            response = dict(
+                context["bridge"].move(
+                    self.server,
+                    clone_scratch["dimension"],
+                    source["x"],
+                    source["y"],
+                    source["z"],
+                    destination["x"],
+                    destination["y"],
+                    destination["z"],
+                    False,
+                    False,
+                    int(clone_scratch.get("expected_revision") or 0),
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        source_after = self._matrix_capture_location(
+            context, clone_scratch["dimension"], source
+        )
+        destination_after = self._matrix_capture_location(
+            context, move_scratch["dimension"], destination
+        )
+        try:
+            dimension = self.server.level.get_dimension(clone_scratch["dimension"])
+            source_air = (
+                str(dimension.get_block_at(source["x"], source["y"], source["z"]).type)
+                == "minecraft:air"
+            )
+        except Exception:
+            source_air = False
+        if source_air:
+            clone_scratch["owned_sign"] = False
+            clone_scratch["expected_revision"] = 0
+            clone_scratch["expected_snapshot"] = {}
+        destination_revision = int(destination_after.get("revision") or 0)
+        passed = (
+            response.get("ok") is True
+            and source_after.get("found") is not True
+            and source_air
+            and destination_revision > 0
+            and int(response.get("revision") or 0) == destination_revision
+            and self._matrix_snapshot_core(destination_after)
+            == self._matrix_snapshot_core(clone_before)
+        )
+        if passed:
+            move_scratch["owned_sign"] = True
+            move_scratch["expected_revision"] = destination_revision
+            move_scratch["expected_snapshot"] = destination_after
+        if source_air or passed:
+            save_run_report(Path(self.data_folder), report)
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={"source": dict(source), "destination": dict(destination)},
+            response={
+                "support": support,
+                "move": response,
+                "source_after": source_after,
+                "source_air": source_air,
+                "destination_after": destination_after,
+            },
+            before=clone_before,
+            after=destination_after,
+            reason="atomic move and source removal read back" if passed else "move probe failed",
+        )
+
+    def _matrix_run_atomic_probe(self, context: dict[str, Any]) -> None:
+        operation = "capture_atomic_rollback"
+        required = (
+            "capture",
+            "place",
+            "read_text",
+            "write_text",
+            "per_line_write",
+            "atomic_transactions",
+        )
+        if not self._matrix_probe_preflight(context, operation, required):
+            return
+        report = context["report"]
+        first = self._matrix_probe_source(report)
+        first_before = self._matrix_capture(context, first)
+        expected_revision = int(first.get("expected_revision") or 0)
+        if (
+            first.get("owned_sign") is not True
+            or not self._matrix_snapshot_matches(first_before, first)
+            or int(first_before.get("revision") or 0) != expected_revision
+        ):
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"first_before": first_before},
+                reason="atomic source does not match its runner-owned revision",
+            )
+            return
+        guard = report["run_probe"]["atomic_guard"]
+        location = guard["location"]
+        dimension = self.server.level.get_dimension(guard["dimension"])
+        guard_block = dimension.get_block_at(
+            location["x"], location["y"], location["z"]
+        )
+        guard_before = str(guard_block.type)
+        if guard_before != "minecraft:air":
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                response={"guard_before": guard_before},
+                reason="atomic rollback guard cell changed after the arena preflight",
+            )
+            return
+        try:
+            guard_block.set_type(guard["block_identifier"], False)
+            guard_after_create = str(guard_block.type)
+        except Exception as error:
+            guard_after_create = f"exception: {error}"
+        if guard_after_create != guard["block_identifier"]:
+            add_matrix_step(
+                report,
+                None,
+                operation=operation,
+                status="failed",
+                required_capabilities=required,
+                mutation_attempted=True,
+                response={"guard_after_create": guard_after_create},
+                reason="atomic rollback guard block could not be created",
+            )
+            return
+        guard["owned"] = True
+        save_run_report(Path(self.data_folder), report)
+        try:
+            first_sign = first["sign"]
+            response = dict(
+                context["bridge"].probe_atomic_rejection(
+                    self.server,
+                    first["dimension"],
+                    first_sign["x"],
+                    first_sign["y"],
+                    first_sign["z"],
+                    location["x"],
+                    location["y"],
+                    location["z"],
+                    first["identifier"],
+                    first["states"],
+                    expected_revision,
+                )
+            )
+        except Exception as error:
+            response = {"ok": False, "status": "exception", "message": str(error)}
+        first_after = self._matrix_capture(context, first)
+        guard_capture = self._matrix_capture_location(
+            context, guard["dimension"], location
+        )
+        guard_after_transaction = str(guard_block.type)
+        guard_removed = False
+        if guard_after_transaction == guard["block_identifier"]:
+            try:
+                guard_block.set_type("minecraft:air", False)
+                guard_removed = str(guard_block.type) == "minecraft:air"
+            except Exception:
+                guard_removed = False
+        if guard_removed:
+            guard["owned"] = False
+            save_run_report(Path(self.data_folder), report)
+        passed = (
+            response.get("ok") is True
+            and response.get("transaction_rejected") is True
+            and response.get("first_sign_unchanged") is True
+            and response.get("rolled_back") is True
+            and int(first_after.get("revision") or 0)
+            == int(first_before.get("revision") or 0)
+            and self._matrix_snapshot_core(first_after)
+            == self._matrix_snapshot_core(first_before)
+            and guard_capture.get("found") is not True
+            and guard_after_transaction == guard["block_identifier"]
+            and guard_removed
+        )
+        add_matrix_step(
+            report,
+            None,
+            operation=operation,
+            status="passed" if passed else "failed",
+            required_capabilities=required,
+            mutation_attempted=True,
+            request={
+                "first": dict(first["sign"]),
+                "blocked_destination": dict(location),
+                "guard_block": guard["block_identifier"],
+            },
+            response={
+                "transaction": response,
+                "first_after": first_after,
+                "guard_capture": guard_capture,
+                "guard_after_transaction": guard_after_transaction,
+                "guard_removed": guard_removed,
+            },
+            before={"first": first_before, "guard_type": guard_before},
+            after={"first": first_after, "guard_type": str(guard_block.type)},
+            reason=(
+                "adapter failure rolled back the first mutation and preserved the occupied guard"
+                if passed
+                else "atomic adapter rollback probe failed"
+            ),
+        )
+
     def _matrix_cleanup_case(
         self, context: dict[str, Any], case: dict[str, Any], *, standalone: bool
     ) -> bool:
@@ -2240,11 +3510,46 @@ class SignApiTesterPlugin(Plugin):
                             "status": "exception",
                             "message": str(error),
                         }
+                    after_error = ""
+                    try:
+                        public_dimension = self.server.level.get_dimension(
+                            case["dimension"]
+                        )
+                        after_type = str(
+                            public_dimension.get_block_at(
+                                sign["x"], sign["y"], sign["z"]
+                            ).type
+                        )
+                    except Exception as error:
+                        after_type = ""
+                        after_error = str(error)
+                    removal_passed = (
+                        response.get("ok") is True
+                        and after_type == "minecraft:air"
+                    )
+                    after = {
+                        "found": (
+                            False
+                            if after_type == "minecraft:air"
+                            else True if after_type else None
+                        ),
+                        "type": after_type,
+                        "dimension": case["dimension"],
+                        **sign,
+                    }
+                    if after_error:
+                        after["error"] = after_error
+                    removal_reason = str(response.get("message") or "")
+                    if response.get("ok") is True and after_type != "minecraft:air":
+                        removal_reason = (
+                            "Sign API reported success, but the public block read did not "
+                            "prove air"
+                        )
                     add_matrix_step(
                         report,
                         case,
                         operation="cleanup_remove_sign",
-                        status="passed" if response.get("ok") is True else "failed",
+                        status="passed" if removal_passed else "failed",
                         required_capabilities=("remove",),
                         mutation_attempted=True,
                         request={
@@ -2254,12 +3559,17 @@ class SignApiTesterPlugin(Plugin):
                         },
                         response=response,
                         before=snapshot,
-                        reason=str(response.get("message") or ""),
+                        after=after,
+                        reason=removal_reason,
                     )
-                    if response.get("ok") is True:
+                    if removal_passed:
                         case["owned_sign"] = False
+                        save_run_report(Path(self.data_folder), report)
                     else:
-                        conflict_reason = "Sign API removal failed; support was preserved"
+                        conflict_reason = (
+                            removal_reason
+                            or "Sign API removal failed; support was preserved"
+                        )
         sign_location = case["sign"]
         try:
             dimension = self.server.level.get_dimension(case["dimension"])
@@ -2321,8 +3631,29 @@ class SignApiTesterPlugin(Plugin):
                 )
                 if passed:
                     case["owned_support"] = False
+                    save_run_report(Path(self.data_folder), report)
                 else:
                     conflict_reason = conflict_reason or "support removal failed"
+        if not case.get("owned_support"):
+            support = case["support"]
+            try:
+                support_dimension = self.server.level.get_dimension(case["dimension"])
+                support_type = str(
+                    support_dimension.get_block_at(
+                        support["x"], support["y"], support["z"]
+                    ).type
+                )
+            except Exception as error:
+                support_type = ""
+                conflict_reason = (
+                    conflict_reason
+                    or f"support cell could not be read safely ({error}); it was preserved"
+                )
+            if support_type and support_type != "minecraft:air":
+                conflict_reason = (
+                    conflict_reason
+                    or "support cell is non-air without verified runner ownership; it was preserved"
+                )
         if conflict_reason:
             report["cleanup"].setdefault("conflicts", []).append(
                 {"case_id": case["id"], "reason": conflict_reason}
@@ -2339,15 +3670,305 @@ class SignApiTesterPlugin(Plugin):
             return False
         return True
 
+    def _matrix_cleanup_probe_scratch(self, context: dict[str, Any]) -> None:
+        report = context["report"]
+        bridge = context["bridge"]
+        probe = dict(report.get("run_probe") or {})
+        guard = probe.get("atomic_guard")
+        if isinstance(guard, dict) and guard.get("owned"):
+            location = dict(guard.get("location") or {})
+            guard_conflict = ""
+            try:
+                dimension = self.server.level.get_dimension(str(guard["dimension"]))
+                block = dimension.get_block_at(
+                    location["x"], location["y"], location["z"]
+                )
+                before_type = str(block.type)
+                if before_type != guard.get("block_identifier"):
+                    guard_conflict = (
+                        "atomic guard changed after creation; it was preserved"
+                    )
+                    after_type = before_type
+                else:
+                    block.set_type("minecraft:air", False)
+                    after_type = str(block.type)
+                    if after_type == "minecraft:air":
+                        guard["owned"] = False
+                        save_run_report(Path(self.data_folder), report)
+                    else:
+                        guard_conflict = "atomic guard removal failed"
+            except Exception as error:
+                before_type = ""
+                after_type = ""
+                guard_conflict = f"atomic guard cleanup failed: {error}"
+            add_matrix_step(
+                report,
+                None,
+                operation="cleanup_atomic_guard",
+                status="failed" if guard_conflict else "passed",
+                mutation_attempted=not bool(guard_conflict) or before_type == guard.get(
+                    "block_identifier"
+                ),
+                request={"type": "minecraft:air", **location},
+                before={"type": before_type},
+                after={"type": after_type},
+                reason=guard_conflict or "removed runner-owned atomic rollback guard",
+            )
+            if guard_conflict:
+                report["cleanup"].setdefault("conflicts", []).append(
+                    {"case_id": "run-probe-atomic", "reason": guard_conflict}
+                )
+        elif isinstance(guard, dict):
+            location = dict(guard.get("location") or {})
+            try:
+                dimension = self.server.level.get_dimension(str(guard["dimension"]))
+                guard_type = str(
+                    dimension.get_block_at(
+                        location["x"], location["y"], location["z"]
+                    ).type
+                )
+            except Exception as error:
+                guard_type = ""
+                guard_reason = f"unowned atomic guard cell read failed: {error}"
+            else:
+                guard_reason = (
+                    "atomic guard cell contains an unowned guard block; it was preserved"
+                    if guard_type == guard.get("block_identifier")
+                    else ""
+                )
+            if guard_reason:
+                report["cleanup"].setdefault("conflicts", []).append(
+                    {"case_id": "run-probe-atomic", "reason": guard_reason}
+                )
+                add_matrix_step(
+                    report,
+                    None,
+                    operation="cleanup_atomic_guard_conflict",
+                    status="failed",
+                    response={"type": guard_type},
+                    reason=guard_reason,
+                )
+        for name in ("move", "clone"):
+            scratch = probe.get(name)
+            if not isinstance(scratch, dict):
+                continue
+            sign = dict(scratch.get("sign") or {})
+            support = dict(scratch.get("support") or {})
+            dimension_name = str(scratch.get("dimension") or "")
+            conflict_reason = ""
+            try:
+                dimension = self.server.level.get_dimension(dimension_name)
+            except Exception as error:
+                report["cleanup"].setdefault("conflicts", []).append(
+                    {
+                        "case_id": f"run-probe-{name}",
+                        "reason": f"scratch dimension is unavailable: {error}",
+                    }
+                )
+                continue
+            if scratch.get("owned_sign"):
+                before = self._matrix_capture_location(context, dimension_name, sign)
+                expected = dict(scratch.get("expected_snapshot") or {})
+                expected_revision = int(scratch.get("expected_revision") or 0)
+                if (
+                    before.get("found") is not True
+                    or expected_revision <= 0
+                    or int(before.get("revision") or 0) != expected_revision
+                    or self._matrix_snapshot_core(before)
+                    != self._matrix_snapshot_core(expected)
+                ):
+                    conflict_reason = (
+                        "runner-owned scratch sign no longer matches its captured revision; "
+                        "it was preserved"
+                    )
+                else:
+                    ready, reason, _ = self._mutation_preflight(
+                        bridge, self.server, f"cleanup {name} scratch", ("remove",)
+                    )
+                    if not ready:
+                        conflict_reason = reason
+                    else:
+                        try:
+                            response = dict(
+                                bridge.remove(
+                                    self.server,
+                                    dimension_name,
+                                    sign["x"],
+                                    sign["y"],
+                                    sign["z"],
+                                    False,
+                                    expected_revision,
+                                )
+                            )
+                        except Exception as error:
+                            response = {
+                                "ok": False,
+                                "status": "exception",
+                                "message": str(error),
+                            }
+                        after_error = ""
+                        try:
+                            after_type = str(
+                                dimension.get_block_at(
+                                    sign["x"], sign["y"], sign["z"]
+                                ).type
+                            )
+                        except Exception as error:
+                            after_type = ""
+                            after_error = str(error)
+                        removal_passed = (
+                            response.get("ok") is True
+                            and after_type == "minecraft:air"
+                        )
+                        after = {
+                            "found": (
+                                False
+                                if after_type == "minecraft:air"
+                                else True if after_type else None
+                            ),
+                            "type": after_type,
+                            "dimension": dimension_name,
+                            **sign,
+                        }
+                        if after_error:
+                            after["error"] = after_error
+                        removal_reason = str(response.get("message") or "")
+                        if response.get("ok") is True and after_type != "minecraft:air":
+                            removal_reason = (
+                                "Sign API reported scratch removal success, but the public "
+                                "block read did not prove air"
+                            )
+                        add_matrix_step(
+                            report,
+                            None,
+                            operation=f"cleanup_{name}_scratch_sign",
+                            status="passed" if removal_passed else "failed",
+                            required_capabilities=("remove",),
+                            mutation_attempted=True,
+                            request={
+                                "dimension": dimension_name,
+                                **sign,
+                                "expected_revision": expected_revision,
+                            },
+                            response=response,
+                            before=before,
+                            after=after,
+                            reason=removal_reason or "scratch removal failed",
+                        )
+                        if removal_passed:
+                            scratch["owned_sign"] = False
+                            scratch["expected_revision"] = 0
+                            scratch["expected_snapshot"] = {}
+                            save_run_report(Path(self.data_folder), report)
+                        else:
+                            conflict_reason = (
+                                removal_reason
+                                or "runner-owned scratch sign removal failed"
+                            )
+            try:
+                sign_type = str(
+                    dimension.get_block_at(sign["x"], sign["y"], sign["z"]).type
+                )
+            except Exception as error:
+                sign_type = ""
+                conflict_reason = conflict_reason or f"scratch sign cell read failed: {error}"
+            if not scratch.get("owned_sign") and sign_type != "minecraft:air":
+                conflict_reason = (
+                    conflict_reason
+                    or "scratch sign cell is non-air without a verified owned revision; it was preserved"
+                )
+            try:
+                support_type = str(
+                    dimension.get_block_at(
+                        support["x"], support["y"], support["z"]
+                    ).type
+                )
+            except Exception as error:
+                support_type = ""
+                conflict_reason = (
+                    conflict_reason or f"scratch support cell read failed: {error}"
+                )
+            if not scratch.get("owned_support") and support_type != "minecraft:air":
+                support_reason = (
+                    "scratch support cell is non-air without verified runner ownership; "
+                    "it was preserved"
+                )
+                conflict_reason = (
+                    f"{conflict_reason}; {support_reason}"
+                    if conflict_reason
+                    else support_reason
+                )
+            if (
+                not scratch.get("owned_sign")
+                and sign_type == "minecraft:air"
+                and scratch.get("owned_support")
+            ):
+                block = dimension.get_block_at(
+                    support["x"], support["y"], support["z"]
+                )
+                before_type = str(block.type)
+                if before_type != report["config"]["support_block"]:
+                    conflict_reason = (
+                        conflict_reason
+                        or "scratch support changed after creation; it was preserved"
+                    )
+                else:
+                    try:
+                        block.set_type("minecraft:air", False)
+                        after_type = str(block.type)
+                    except Exception as error:
+                        after_type = f"exception: {error}"
+                    passed = after_type == "minecraft:air"
+                    add_matrix_step(
+                        report,
+                        None,
+                        operation=f"cleanup_{name}_scratch_support",
+                        status="passed" if passed else "failed",
+                        mutation_attempted=True,
+                        request={"type": "minecraft:air", **support},
+                        before={"type": before_type},
+                        after={"type": after_type},
+                        reason=(
+                            "removed runner-owned scratch support"
+                            if passed
+                            else "scratch support removal failed"
+                        ),
+                    )
+                    if passed:
+                        scratch["owned_support"] = False
+                        save_run_report(Path(self.data_folder), report)
+                    else:
+                        conflict_reason = conflict_reason or "scratch support removal failed"
+            if conflict_reason:
+                report["cleanup"].setdefault("conflicts", []).append(
+                    {"case_id": f"run-probe-{name}", "reason": conflict_reason}
+                )
+                add_matrix_step(
+                    report,
+                    None,
+                    operation=f"cleanup_{name}_scratch_conflict",
+                    status="failed",
+                    response={"sign_type": sign_type},
+                    reason=conflict_reason,
+                )
+        report["run_probe_cleanup_completed_at_utc"] = matrix_utc_now()
+
     def _matrix_cleanup_tick(self, context: dict[str, Any]) -> None:
         context["plugin"] = self
         report = context["report"]
         index = int(report["cursor"]["case_index"])
         if index >= len(report["cases"]):
+            if (
+                report.get("mode") == "full_system_acceptance"
+                and not report.get("run_probe_cleanup_completed_at_utc")
+            ):
+                self._matrix_cleanup_probe_scratch(context)
             conflicts = report["cleanup"].get("conflicts", [])
             report["cleanup"]["state"] = "completed" if not conflicts else "conflicts"
             report["cleanup"]["completed_at_utc"] = matrix_utc_now()
             refresh_matrix_coverage(report)
+            refresh_matrix_qualification(report)
+            self._sync_acceptance_to_stage(report)
             path = save_run_report(Path(self.data_folder), report)
             sender_name = str(context.get("sender_name") or "")
             self.matrix_context = None

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "endstone-sign-api"
-version = "0.2.0a6"
+version = "0.2.0a7"
 description = "Complete sign lifecycle contract and exact-build activation framework for Endstone"
 readme = "README.md"
 requires-python = ">=3.11"

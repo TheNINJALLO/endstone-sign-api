@@ -336,6 +336,24 @@ def main() -> int:
                 f"missing={sorted(declared_members - actual_payload)}, "
                 f"extra={sorted(actual_payload - declared_members)}"
             )
+        required_qualification_files = {
+            f"{archive_root}tools/validate_full_system_acceptance.py",
+            f"{archive_root}tools/verify_native_manifest.py",
+            (
+                f"{archive_root}examples/python/sign_api_tester_plugin/src/"
+                "endstone_sign_tester/automation.py"
+            ),
+            (
+                f"{archive_root}examples/python/sign_api_tester_plugin/src/"
+                "endstone_sign_tester/default-config.toml"
+            ),
+        }
+        missing_qualification_files = required_qualification_files - declared_members
+        if missing_qualification_files:
+            raise SystemExit(
+                "Complete ZIP is missing full-system qualification tooling: "
+                + ", ".join(sorted(missing_qualification_files))
+            )
 
         primary = manifest.get("primary_plugin")
         if not isinstance(primary, str) or archive_root + primary not in declared_members:

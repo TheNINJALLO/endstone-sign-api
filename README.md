@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.6`
+**Release:** `v0.2.0-alpha.7`
 
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
@@ -9,7 +9,14 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.6 also ships a deliberately partial native probe adapter and a configurable automated tester for a backed-up disposable server. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.7 ships a strict full-system qualification coordinator around the deliberately partial native probe adapter. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+
+Alpha.7 does not turn unavailable native operations on by changing capability
+flags. `/signprobe accept` runs the complete 48-case profile, starts the exact
+31-probe stage report, and makes every closed capability, failed or skipped
+step, pending client/reconnect/restart checkpoint, identity mismatch, or cleanup
+conflict a release blocker. Exact-binary, ownership, revision, native-readback,
+and rollback safety gates remain mandatory.
 
 Alpha.5 is superseded: its hosted Linux matrix passed the first 20 cases, then
 aborted at dark-oak standing placement because that release generated
@@ -22,8 +29,60 @@ On Linux x64, the probe adapter exposes front/back plain-text read/write only wh
 
 This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. Alpha.6 additionally requires the exact executable hash inside every structural mutation, resolves all 50 support/cleanup/sign descriptors before the first world write, and enumerates Endstone's pre-populated block registry before the native descriptor boundary. The Windows candidate is read-only until its independent binary and text boundaries are verified.
 
-The matching tester wheel can plan and run all 12 materials across all four
-forms with one command:
+Start the alpha.7 qualification session with one command:
+
+```text
+/signprobe accept 100 64 100 confirm
+```
+
+After the 48 material/form cases, the same scheduled runner exercises the 12
+remaining server-side operations through the native Python bridge: filtered
+text, text-object JSON, owner XUID, hidden glow outline, formatting
+persistence, editor lock/unlock, cancellable API edits, replacement, clone,
+move, and atomic rollback. Mutations are captured and restored where
+applicable. Clone and move use two preflighted runner-owned scratch cells; the
+rollback check uses a temporary occupied guard block to force a real
+adapter-level failure after the first transaction operation. Every scratch
+block is revision/ownership tracked and must be removed by matrix cleanup.
+
+The session deliberately cannot report `qualification_passed` until all 31
+probes have evidence and ownership-aware cleanup has completed. Client UI,
+player-edit, reconnect, and restart checks still require the operator/client
+actions described by the tester; after those checkpoints, run matrix cleanup
+(do not call `/signprobe remove` on the retained sign), hash the final
+log/post-cleanup backup, and run `/signprobe finish`. Cleanup evidence projects
+the `remove` probe automatically.
+
+The seven guided client/player/reconnect/restart results are operator-attested
+evidence. The offline validator binds them to the exact run, world, binaries,
+log, and backup, but it cannot independently observe a Bedrock client screen or
+reconnect action. An official-release review must inspect those evidence notes
+and the bound log/artifacts rather than treating a non-empty note as automatic
+client proof.
+
+Validate the two resulting files and their bound artifacts with:
+
+```bash
+python tools/validate_full_system_acceptance.py \
+  latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
+  --server-executable ./bedrock_server \
+  --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
+  --tester-wheel plugins/endstone_sign_tester-0.2.0a7-cp314-cp314-linux_x86_64.whl \
+  --server-log acceptance-server.log \
+  --world-backup post-cleanup-world-backup.zip
+```
+
+On Windows, pass the exact `bedrock_server.exe` and the Windows `.dll` and
+tester wheel paths instead.
+
+Run and validate Linux and Windows independently before considering an official
+release. The validator requires 48/48 cases, 31/31 probes, every functional
+capability except the final stage-pass flag, zero failed/skipped/manual entries,
+matching binary identity, and conflict-free cleanup. The current partial Linux
+adapter and diagnostic-only Windows adapter are expected to remain blocked
+until their missing native layers are implemented and reviewed.
+
+The supported-scope diagnostic matrix remains available:
 
 ```text
 /signprobe run 100 64 100 confirm
@@ -41,13 +100,15 @@ behavior.
 
 ARGB color, glow, wax, filtered text, text objects, owner data, formatting
 flags, editor locking, clone, move, and atomic operations are present in the
-coverage report but are not called when their capability is false. Client
+coverage report. Acceptance mode now has an executable bridge path for every
+server-side operation, but a path is not called when its native capability is
+false; that skip blocks qualification. Client
 rendering, editor UI acknowledgement, player edits, reconnect, and restart
 persistence remain explicit manual checkpoints. Therefore an automated report
 always has `activation_eligible: false`, even when every currently supported
 server-side check passes.
 
-That is the alpha.6 matrix result: every supported server-side case passed;
+The inherited alpha.6 matrix result was: every supported server-side case passed;
 expected capability-gated and manual entries remained skipped or pending. It
 does not claim that advanced operations, all stage probes, or complete-control
 activation passed. Cleanup was disabled for that run, so suite-owned removal

@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.0-alpha.7
+
+- Added `/signprobe accept <x> <y> <z> confirm`, a strict full-system
+  qualification mode that forces all 12 materials and four sign forms, starts
+  the exact 31-probe stage report, enables every implemented advanced phase,
+  continues through case failures, and defers ownership cleanup until after
+  reconnect/restart evidence can be collected.
+- Added a derived qualification verdict. It passes only with 48/48 cases,
+  31/31 evidence-backed probes, every native capability except the final
+  stage-pass flag, zero failed/skipped steps, exact stage/matrix identity
+  agreement, and completed conflict-free cleanup with no owned blocks left.
+- Added `tools/validate_full_system_acceptance.py` and regression tests for a
+  complete qualification plus fail-closed rejection of any closed native
+  layer. Official evidence now binds and independently re-hashes the exact BDS
+  executable, tester wheel, native plugin, final server log, and world backup,
+  then validates operation-specific requests, revisions, readbacks, cleanup,
+  timestamps, and ownership instead of accepting generic success objects.
+- Added live-bridge executors for all 12 server-side run probes: advanced text
+  fields, editor lock/unlock, API-event cancellation, replacement, clone,
+  move, and a deterministic two-operation rollback check. Clone/move scratch
+  cells and the temporary rollback guard are preflighted, ownership tracked,
+  revision checked, and included in strict cleanup validation. Sign ownership
+  is cleared only after the remove response succeeds and a public block read
+  independently proves air.
+- Added a versioned auxiliary live-probe service so event-cancellation probes
+  execute inside the provider plugin's ABI boundary. Listener state has shared
+  lifetime, unique concurrent probe tokens, and no lock held across synchronous
+  event callbacks.
+- Kept exact executable, native fingerprint/ABI, primary-thread, descriptor,
+  revision, ownership, readback, and rollback gates intact. Alpha.7 is a
+  downloadable prerelease qualification candidate, not a verified production
+  bridge; currently unimplemented advanced and Windows layers remain explicit
+  blockers.
+
 ## 0.2.0-alpha.6
 
 - Fixed the legacy Bedrock dark-oak standing/wall identifiers to

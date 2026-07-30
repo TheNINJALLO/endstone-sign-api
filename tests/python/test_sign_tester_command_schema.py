@@ -111,10 +111,13 @@ class SignTesterCommandSchemaTests(unittest.TestCase):
     def test_automation_commands_use_distinct_confirmation_enums(self) -> None:
         usages = load_usages()
         run = next(usage for usage in usages if "(run)<action:" in usage)
+        accept = next(usage for usage in usages if "(accept)<action:" in usage)
         cleanup = next(usage for usage in usages if "(cleanup)<action:" in usage)
         self.assertIn("(confirm)<confirmation: SignProbeRunConfirm>", run)
+        self.assertIn("(confirm)<confirmation: SignProbeAcceptConfirm>", accept)
         self.assertIn("(confirm)<confirmation: SignProbeCleanupConfirm>", cleanup)
         self.assertIn("<x: int> <y: int> <z: int>", run)
+        self.assertIn("<x: int> <y: int> <z: int>", accept)
 
 
 if __name__ == "__main__":

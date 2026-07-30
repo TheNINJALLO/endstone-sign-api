@@ -1,4 +1,5 @@
 #include "endstone_sign/live_service.h"
+#include "endstone_sign/live_probe_service.h"
 
 #include <endstone/player.h>
 #include <endstone/plugin/service_manager.h>
@@ -12,6 +13,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace py = pybind11;
@@ -21,6 +23,11 @@ namespace {
 
 std::shared_ptr<LiveSignService> loadService(endstone::Server &server) {
     return server.getServiceManager().load<LiveSignService>(std::string(SignServiceName));
+}
+
+std::shared_ptr<LiveSignProbeService> loadProbeService(endstone::Server &server) {
+    return server.getServiceManager().load<LiveSignProbeService>(
+        std::string(SignProbeServiceName));
 }
 
 SignLocation location(std::string dimension, std::int32_t x, std::int32_t y,
@@ -34,6 +41,19 @@ py::dict resultToDict(const SignApplyResult &result) {
     out["status"] = std::string(signApplyStatusName(result.status));
     out["message"] = result.message;
     out["revision"] = result.resulting_revision;
+    return out;
+}
+
+py::dict transactionResultToDict(const SignTransactionResult &result) {
+    py::dict out;
+    out["ok"] = result.ok();
+    out["status"] = std::string(signApplyStatusName(result.status));
+    out["message"] = result.message;
+    py::list operations;
+    for (const auto &operation : result.operation_results)
+        operations.append(resultToDict(operation));
+    out["operation_results"] = std::move(operations);
+    out["rolled_back"] = result.rolled_back;
     return out;
 }
 
@@ -180,6 +200,51 @@ py::dict setText(endstone::Server &server, const std::string &dimension,
     return resultToDict(service->apply(patch, force));
 }
 
+py::dict setExtendedText(
+    endstone::Server &server, const std::string &dimension, std::int32_t x,
+    std::int32_t y, std::int32_t z, const std::string &side,
+    std::optional<std::string> filtered_message,
+    std::optional<std::string> text_object,
+    std::optional<bool> message_is_text_object,
+    std::optional<std::string> owner_xuid,
+    std::optional<bool> hide_glow_outline,
+    std::optional<bool> persist_formatting, bool force,
+    std::optional<std::uint64_t> expected_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    SignTextPatch text;
+    text.filtered_message = std::move(filtered_message);
+    text.text_object = std::move(text_object);
+    text.message_is_text_object = message_is_text_object;
+    text.owner_xuid = std::move(owner_xuid);
+    text.hide_glow_outline = hide_glow_outline;
+    text.persist_formatting = persist_formatting;
+    SignPatch patch;
+    patch.location = location(dimension, x, y, z);
+    patch.expected_revision = expected_revision;
+    if (side == "front") patch.front = std::move(text);
+    else if (side == "back") patch.back = std::move(text);
+    else throw py::value_error("side must be 'front' or 'back'");
+    return resultToDict(service->apply(patch, force));
+}
+
+py::dict setEditorLock(
+    endstone::Server &server, const std::string &dimension, std::int32_t x,
+    std::int32_t y, std::int32_t z, std::int64_t locked_for_editing_by,
+    std::optional<std::string> locked_for_editing_xuid, bool force,
+    std::optional<std::uint64_t> expected_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    SignPatch patch;
+    patch.location = location(dimension, x, y, z);
+    patch.expected_revision = expected_revision;
+    patch.locked_for_editing_by = locked_for_editing_by;
+    patch.locked_for_editing_xuid = std::move(locked_for_editing_xuid);
+    return resultToDict(service->apply(patch, force));
+}
+
 SignStates requireStates(const py::dict &states) {
     SignStates result;
     for (const auto &[raw_key, raw_value] : states) {
@@ -202,6 +267,30 @@ SignStates requireStates(const py::dict &states) {
         }
     }
     return result;
+}
+
+py::dict replaceSign(
+    endstone::Server &server, const std::string &dimension, std::int32_t x,
+    std::int32_t y, std::int32_t z, const std::string &block_identifier,
+    const py::dict &states, bool force,
+    std::optional<std::uint64_t> expected_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    const auto target = location(dimension, x, y, z);
+    const auto current = service->capture(target);
+    if (!current) return resultToDict({SignApplyStatus::NotASign,
+                                      "replacement target is not a sign", 0});
+    SignPatch patch;
+    patch.location = target;
+    patch.expected_revision = expected_revision;
+    patch.block_identifier = block_identifier;
+    patch.state_updates = requireStates(states);
+    for (const auto &entry : current->states) {
+        if (!patch.state_updates.contains(entry.first))
+            patch.state_removals.insert(entry.first);
+    }
+    return resultToDict(service->apply(patch, force));
 }
 
 py::dict place(endstone::Server &server, const std::string &dimension,
@@ -229,6 +318,120 @@ py::dict remove(endstone::Server &server, const std::string &dimension,
     return resultToDict(service->remove(request, force));
 }
 
+py::dict cloneSign(
+    endstone::Server &server, const std::string &dimension,
+    std::int32_t source_x, std::int32_t source_y, std::int32_t source_z,
+    std::int32_t destination_x, std::int32_t destination_y,
+    std::int32_t destination_z, bool copy_editor_lock, bool force,
+    std::optional<std::uint64_t> expected_source_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    SignCloneRequest request;
+    request.source = location(dimension, source_x, source_y, source_z);
+    request.destination =
+        location(dimension, destination_x, destination_y, destination_z);
+    request.expected_source_revision = expected_source_revision;
+    request.copy_editor_lock = copy_editor_lock;
+    return resultToDict(service->cloneSign(request, force));
+}
+
+py::dict moveSign(
+    endstone::Server &server, const std::string &dimension,
+    std::int32_t source_x, std::int32_t source_y, std::int32_t source_z,
+    std::int32_t destination_x, std::int32_t destination_y,
+    std::int32_t destination_z, bool copy_editor_lock, bool force,
+    std::optional<std::uint64_t> expected_source_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    SignMoveRequest request;
+    request.source = location(dimension, source_x, source_y, source_z);
+    request.destination =
+        location(dimension, destination_x, destination_y, destination_z);
+    request.expected_source_revision = expected_source_revision;
+    request.copy_editor_lock = copy_editor_lock;
+    return resultToDict(service->moveSign(request, force));
+}
+
+py::dict probeAtomicRejection(
+    endstone::Server &server, const std::string &dimension,
+    std::int32_t first_x, std::int32_t first_y, std::int32_t first_z,
+    std::int32_t blocked_x, std::int32_t blocked_y, std::int32_t blocked_z,
+    const std::string &block_identifier, const py::dict &states,
+    std::optional<std::uint64_t> expected_revision) {
+    const auto service = loadService(server);
+    if (!service) return resultToDict({SignApplyStatus::AdapterUnavailable,
+                                      "service unavailable", 0});
+    const auto first_location = location(dimension, first_x, first_y, first_z);
+    const auto first_before = service->capture(first_location);
+    if (!first_before) {
+        py::dict out;
+        out["ok"] = false;
+        out["status"] = "not_a_sign";
+        out["message"] = "the atomic probe source sign must exist";
+        return out;
+    }
+    if (expected_revision && *expected_revision != first_before->revision) {
+        return resultToDict({SignApplyStatus::Conflict,
+                             "atomic probe source revision changed",
+                             first_before->revision});
+    }
+    SignPatch first;
+    first.location = first_location;
+    first.expected_revision = first_before->revision;
+    SignTextPatch first_text;
+    first_text.line_updates[0] =
+        first_before->front.lines[0] == "a7tx" ? "a7ty" : "a7tx";
+    first.front = std::move(first_text);
+    SignPlaceRequest second;
+    second.location = location(dimension, blocked_x, blocked_y, blocked_z);
+    second.block_identifier = block_identifier;
+    second.states = requireStates(states);
+    second.replace_policy = SignReplacePolicy::RequireAir;
+    SignTransaction transaction;
+    transaction.rollback_on_failure = true;
+    transaction.audit_reason = "alpha7 atomic no-partial-write probe";
+    transaction.operations.emplace_back(std::move(first));
+    transaction.operations.emplace_back(std::move(second));
+    const auto result = service->transact(transaction);
+    const auto first_after = service->capture(first_location);
+    auto out = transactionResultToDict(result);
+    const bool unchanged = first_after &&
+                           first_after->revision == first_before->revision;
+    const bool operation_shape =
+        result.status == SignApplyStatus::TransactionFailed &&
+        result.operation_results.size() == 2 &&
+        result.operation_results[0].status == SignApplyStatus::Applied &&
+        result.operation_results[1].status == SignApplyStatus::BlockOccupied;
+    out["transaction_rejected"] = operation_shape;
+    out["first_sign_unchanged"] = unchanged;
+    out["before_revision"] = first_before->revision;
+    out["after_revision"] = first_after ? first_after->revision : 0;
+    out["ok"] = operation_shape && result.rolled_back && unchanged;
+    return out;
+}
+
+py::dict probeApiEventCancellation(
+    endstone::Server &server, const std::string &dimension, std::int32_t x,
+    std::int32_t y, std::int32_t z,
+    std::optional<std::uint64_t> expected_revision) {
+    const auto probe_service = loadProbeService(server);
+    if (!probe_service)
+        return resultToDict({SignApplyStatus::AdapterUnavailable,
+                             "probe service unavailable", 0});
+    const auto target = location(dimension, x, y, z);
+    const auto result = probe_service->probeApiEventCancellation(
+        target, expected_revision);
+    auto out = resultToDict(result.apply_result);
+    out["event_observed"] = result.event_observed;
+    out["event_cancelled"] = result.event_cancelled;
+    out["state_unchanged"] = result.state_unchanged;
+    out["listener_removed"] = result.listener_removed;
+    out["ok"] = result.ok();
+    return out;
+}
+
 py::dict openEditor(endstone::Server &server, endstone::Player &player,
                     const std::string &dimension, std::int32_t x,
                     std::int32_t y, std::int32_t z, const std::string &side,
@@ -251,7 +454,7 @@ py::dict openEditor(endstone::Server &server, endstone::Player &player,
 
 PYBIND11_MODULE(_endstone_sign_live, module) {
     module.doc() = "Experimental live bridge to endstone:sign:v2";
-    module.attr("__version__") = "0.2.0a6";
+    module.attr("__version__") = "0.2.0a7";
     module.def("available", &endstone_sign::available, py::arg("server"));
     module.def("status", &endstone_sign::status, py::arg("server"));
     module.def("capture", &endstone_sign::capture, py::arg("server"),
@@ -262,13 +465,61 @@ PYBIND11_MODULE(_endstone_sign_live, module) {
                py::arg("glowing") = py::none(), py::arg("waxed") = py::none(),
                py::arg("force") = false,
                py::arg("expected_revision") = py::none());
+    module.def("set_extended_text", &endstone_sign::setExtendedText,
+               py::arg("server"), py::arg("dimension"), py::arg("x"),
+               py::arg("y"), py::arg("z"), py::arg("side"),
+               py::arg("filtered_message") = py::none(),
+               py::arg("text_object") = py::none(),
+               py::arg("message_is_text_object") = py::none(),
+               py::arg("owner_xuid") = py::none(),
+               py::arg("hide_glow_outline") = py::none(),
+               py::arg("persist_formatting") = py::none(),
+               py::arg("force") = false,
+               py::arg("expected_revision") = py::none());
+    module.def("set_editor_lock", &endstone_sign::setEditorLock,
+               py::arg("server"), py::arg("dimension"), py::arg("x"),
+               py::arg("y"), py::arg("z"),
+               py::arg("locked_for_editing_by"),
+               py::arg("locked_for_editing_xuid") = py::none(),
+               py::arg("force") = false,
+               py::arg("expected_revision") = py::none());
     module.def("place", &endstone_sign::place, py::arg("server"),
                py::arg("dimension"), py::arg("x"), py::arg("y"), py::arg("z"),
                py::arg("block_identifier"), py::arg("states"));
+    module.def("replace", &endstone_sign::replaceSign, py::arg("server"),
+               py::arg("dimension"), py::arg("x"), py::arg("y"),
+               py::arg("z"), py::arg("block_identifier"), py::arg("states"),
+               py::arg("force") = false,
+               py::arg("expected_revision") = py::none());
     module.def("remove", &endstone_sign::remove, py::arg("server"),
                py::arg("dimension"), py::arg("x"), py::arg("y"), py::arg("z"),
                py::arg("force") = false,
                py::arg("expected_revision") = py::none());
+    module.def("clone", &endstone_sign::cloneSign, py::arg("server"),
+               py::arg("dimension"), py::arg("source_x"),
+               py::arg("source_y"), py::arg("source_z"),
+               py::arg("destination_x"), py::arg("destination_y"),
+               py::arg("destination_z"), py::arg("copy_editor_lock") = false,
+               py::arg("force") = false,
+               py::arg("expected_source_revision") = py::none());
+    module.def("move", &endstone_sign::moveSign, py::arg("server"),
+               py::arg("dimension"), py::arg("source_x"),
+               py::arg("source_y"), py::arg("source_z"),
+               py::arg("destination_x"), py::arg("destination_y"),
+               py::arg("destination_z"), py::arg("copy_editor_lock") = false,
+               py::arg("force") = false,
+               py::arg("expected_source_revision") = py::none());
+    module.def("probe_atomic_rejection", &endstone_sign::probeAtomicRejection,
+               py::arg("server"), py::arg("dimension"), py::arg("first_x"),
+               py::arg("first_y"), py::arg("first_z"),
+               py::arg("blocked_x"), py::arg("blocked_y"),
+               py::arg("blocked_z"), py::arg("block_identifier"),
+               py::arg("states"),
+               py::arg("expected_revision") = py::none());
+    module.def("probe_api_event_cancellation",
+               &endstone_sign::probeApiEventCancellation, py::arg("server"),
+               py::arg("dimension"), py::arg("x"), py::arg("y"),
+               py::arg("z"), py::arg("expected_revision") = py::none());
     module.def("open_editor", &endstone_sign::openEditor, py::arg("server"),
                py::arg("player"), py::arg("dimension"), py::arg("x"),
                py::arg("y"), py::arg("z"), py::arg("side") = "front",

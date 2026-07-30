@@ -30,6 +30,7 @@ jobs:
         run: |
           python scripts/verify_project_metadata.py
           python scripts/verify_bds_sign_identifiers.py --platform linux-x64
+          python tools/verify_native_symbol_candidates.py
           python tools/verify_fail_closed.py
       - name: Verify both native manifests remain unverified
         shell: bash

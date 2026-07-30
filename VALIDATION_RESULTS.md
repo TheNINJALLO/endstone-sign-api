@@ -2,7 +2,7 @@
 
 Release: `0.2.0-alpha.6`
 Service ABI: `endstone:sign:v2`  
-Validation date: `2026-07-29`
+Validation date: `2026-07-30`
 
 ## Result
 
@@ -28,8 +28,17 @@ identifiers, resolves all 50 support/cleanup/sign descriptors through Endstone b
 the first world write, checks the native block registry before
 `createBlockData`, and records every mutation phase durably. A committed
 36-identifier inventory matches the portable core, test wheel, both executable
-identities, and a live scan of the exact Linux executable. The alpha.6 hosted
-canary and full matrix remain pending.
+identities, and a live scan of the exact Linux executable.
+
+The returned alpha.6 hosted matrix passed all 48 default material/form cases,
+including the corrected legacy dark-oak standing and wall identifiers. The
+supported scope passed blank placement, structural capture, front/back short
+raw-text write and readback, opposite-side preservation, and per-line editing.
+Color, glow, wax, and unwax remained capability-gated and were skipped without
+mutation; cleanup was disabled, so removal remained pending. Manual checkpoints
+and other unsupported advanced operations were not converted into passes.
+Accordingly, the report remains non-activating with `activation_eligible: false`
+and `complete_control: false`.
 
 Release packages contain disposable-world `.dll`/`.so` candidates and tester
 wheels. They are experimental artifacts, not verified production plugins.
@@ -69,7 +78,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `66/66` passed, including identifier inventory and descriptor-preflight coverage |
+| Unit tests | `77/77` passed, including identifier inventory, descriptor preflight, and static candidate-ledger coverage |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -96,8 +105,10 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Exact Windows executable SHA-256/size pinned | Passed |
 | Exact Linux executable SHA-256/size pinned | Passed |
 | Linux text function full hashes independently reproduced | Passed |
+| Non-activating Linux text candidate ledger exact-ELF audit | Passed, 3/3 ranges and unique entry fingerprints |
 | Linux Sign/HangingSign vtable and side layout independently reproduced | Passed |
-| libc++ SSO, text-object, filtered-text, owner, readback, and rollback gates | Passed by source review; live probe pending |
+| libc++ SSO short plain-text and readback gates | Passed by source review and hosted matrix |
+| Text-object, filtered-text, owner, and rollback gates | Passed by source review; live probe pending |
 | Incomplete Linux manifest reports gate closed | Passed |
 | Incomplete Windows manifest reports gate closed | Passed |
 | Strict manifest verification rejects incomplete proof | Passed |
@@ -106,12 +117,12 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Generated C++ manifest remains closed | Passed |
 | Verified native bridge source absent | Passed |
 | Plugin registration guarded by `completeControl()` | Passed by source guard |
-| Structural mutations exact-executable-hash gated in adapter | Passed by source test |
+| Structural mutations exact-executable-hash gated in adapter | Passed by source test; blank placement/capture passed in the hosted matrix |
 | Canonical sign inventory matches portable/test-wheel generators | Passed, 36/36 identifiers |
 | Exact Linux executable identifier scan | Passed, exact hash and 36/36 identifiers |
 | Missing native block types rejected by cache-only enumeration before `createBlockData` | Passed by source guard and regression test |
 | Tester resolves all support/cleanup/sign descriptors before mutation | Passed, 50 descriptors in the default plan |
-| Default matrix is 12 materials × 4 forms without cell collisions | Passed |
+| Default matrix is 12 materials × 4 forms without cell collisions | Passed by plan validation and hosted run, 48/48 cases |
 | Advanced fields are capability-gated without native calls | Passed |
 | Automated evidence never activates the native manifest | Passed |
 
@@ -120,9 +131,8 @@ wheels. They are experimental artifacts, not verified production plugins.
 The following are intentionally unresolved and are required before a verified
 complete-control live plugin may be built:
 
-1. Restore the disposable-world backup, run an alpha.6 dark-oak standing/wall
-   canary, then run the full automated matrix against the exact Linux server
-   and return `latest-matrix-report.json` plus the server log/world backup.
+1. Archive the complete alpha.6 `latest-matrix-report.json` together with the
+   server log and post-test world-backup hashes.
 2. Locate and behavior-confirm the remaining required symbols independently on
    Windows and Linux.
 3. Complete review of every ABI signature and calling contract.

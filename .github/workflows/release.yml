@@ -57,6 +57,10 @@ jobs:
           set -euxo pipefail
           python scripts/verify_project_metadata.py
           python scripts/verify_bds_sign_identifiers.py --platform linux-x64
+          # Existing prerelease tags predate the separate candidate ledger.
+          if [[ -f tools/verify_native_symbol_candidates.py ]]; then
+            python tools/verify_native_symbol_candidates.py
+          fi
           python tools/verify_fail_closed.py
           python - <<'PYTAG'
           import json

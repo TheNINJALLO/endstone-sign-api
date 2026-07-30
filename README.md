@@ -14,8 +14,9 @@ The **portable API, reference adapter, validation, event system, NBT projection,
 Alpha.5 is superseded: its hosted Linux matrix passed the first 20 cases, then
 aborted at dark-oak standing placement because that release generated
 `minecraft:dark_oak_standing_sign`; Bedrock uses the legacy
-`minecraft:darkoak_standing_sign` spelling. Restore the disposable-world
-backup and replace both alpha.5 files before testing again.
+`minecraft:darkoak_standing_sign` spelling. The returned alpha.6 hosted matrix
+passed all 48 default material/form cases, including the corrected legacy
+dark-oak standing and wall identifiers.
 
 On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
 
@@ -45,6 +46,12 @@ rendering, editor UI acknowledgement, player edits, reconnect, and restart
 persistence remain explicit manual checkpoints. Therefore an automated report
 always has `activation_eligible: false`, even when every currently supported
 server-side check passes.
+
+That is the alpha.6 matrix result: every supported server-side case passed;
+expected capability-gated and manual entries remained skipped or pending. It
+does not claim that advanced operations, all stage probes, or complete-control
+activation passed. Cleanup was disabled for that run, so suite-owned removal
+was not exercised.
 
 The probe registers a **partial experimental** `endstone:sign:v2` service; `complete_control` remains false. A verified complete-control bridge remains closed until all of these are simultaneously true:
 
@@ -194,6 +201,18 @@ python tools/verify_native_manifest.py \
   --allow-incomplete
 ```
 
+The separate alpha.6 Linux byte-candidate ledger can also be checked without
+changing any activation evidence. Add the exact local ELF path to reproduce
+the full hashes and unique entry fingerprints:
+
+```bash
+python tools/verify_native_symbol_candidates.py
+python tools/verify_native_symbol_candidates.py /path/to/bedrock_server
+```
+
+Passing this audit is not signature, ABI, behavior, or live-server proof; the
+native manifest remains blocked.
+
 Activation refuses an incomplete manifest:
 
 ```bash
@@ -207,6 +226,7 @@ python tools/activate_verified_manifest.py \
 - `src/`: portable implementation plus the closed native boundary.
 - `python/endstone_sign/`: pure Python reference API.
 - `native/manifests/`: per-platform exact-binary proof manifests.
+- `native/audits/`: non-activating static candidate evidence.
 - `native/probes/`: disposable-world probe contract.
 - `tools/`: archive hashing, manifest verification, probe validation, and activation.
 - `tests/`: portable C++ and Python regression tests.

@@ -34,6 +34,30 @@ For each entry:
 
 Function size and a unique byte pattern are not sufficient behavior proof.
 
+## Static candidate ledger
+
+`native/audits/linux-x64-1.26.33.1-text-symbol-candidates.json` records the
+three byte ranges used by the alpha.6 experimental Linux text bridge. It has a
+candidate-only schema that is deliberately incompatible with the activation
+manifests. Validate its structure, blocked-manifest binding, and adapter
+constant binding without a BDS executable:
+
+```bash
+python tools/verify_native_symbol_candidates.py
+```
+
+When the exact official executable is available locally, audit its identity,
+ELF executable-range mapping, full range hashes, and unique entry
+fingerprints offline:
+
+```bash
+python tools/verify_native_symbol_candidates.py /path/to/bedrock_server
+```
+
+Even a passing exact-ELF audit is only static candidate byte evidence. The
+tool is read-only, does not populate `native/manifests/`, and cannot satisfy
+signature, ABI, behavior, hook, or disposable-world gates.
+
 ## ABI acceptance
 
 Record and review:

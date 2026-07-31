@@ -1380,7 +1380,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 if (!replacement.data) return false;
                 access->block->setData(*replacement.data, false);
 
-                const auto native =
+                auto native =
                     locateNativeSignActor(server_, snapshot.location, &text_bridge_);
                 if (native.access) {
                     if (text_bridge_.ready()) {

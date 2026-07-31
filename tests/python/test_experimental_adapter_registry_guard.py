@@ -50,6 +50,16 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             2,
         )
 
+    def test_transaction_restore_keeps_native_actor_access_mutable(self) -> None:
+        source = ADAPTER_SOURCE.read_text(encoding="utf-8")
+        start = source.index("auto restore_snapshot =")
+        end = source.index("\n\n        auto rollback =", start)
+        restore = source[start:end]
+
+        self.assertIn("auto native =", restore)
+        self.assertNotIn("const auto native =", restore)
+        self.assertIn("signalActorChanged(*native.access);", restore)
+
 
 if __name__ == "__main__":
     unittest.main()

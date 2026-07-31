@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a7"
+    version = "0.2.0a8"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -466,7 +466,13 @@ class SignApiTesterPlugin(Plugin):
                 f"missing {', '.join(missing)}; mutation was not attempted",
                 status,
             )
-        return True, "", status
+        adapter = str(status.get("adapter") or "unknown")
+        return (
+            True,
+            f"native Sign API {operation} gate passed for adapter {adapter!r}; "
+            "all required capabilities were available",
+            status,
+        )
 
     @staticmethod
     def _write_text_preflight(bridge: Any, server: Any) -> tuple[bool, str]:
@@ -652,7 +658,7 @@ class SignApiTesterPlugin(Plugin):
             "/signprobe run <x> <y> <z> confirm - automated 12-material x 4-form matrix"
         )
         sender.send_message(
-            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.7 qualification"
+            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.8 qualification"
         )
         sender.send_message(
             "/signprobe runstatus; /signprobe cancel; /signprobe cleanup confirm; "

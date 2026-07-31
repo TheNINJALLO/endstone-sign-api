@@ -1,6 +1,6 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.7`
+**Release:** `v0.2.0-alpha.8`
 
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
@@ -9,9 +9,9 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.7 ships a strict full-system qualification coordinator around the deliberately partial native probe adapter. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.8 ships the consolidated final qualification candidate around the deliberately partial native probe adapter. It fixes successful capability-preflight evidence so the strict validator can recognize a gate that genuinely passed. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
 
-Alpha.7 does not turn unavailable native operations on by changing capability
+Alpha.8 does not turn unavailable native operations on by changing capability
 flags. `/signprobe accept` runs the complete 48-case profile, starts the exact
 31-probe stage report, and makes every closed capability, failed or skipped
 step, pending client/reconnect/restart checkpoint, identity mismatch, or cleanup
@@ -29,7 +29,7 @@ On Linux x64, the probe adapter exposes front/back plain-text read/write only wh
 
 This first probe is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, combined structural edits, and every binary mismatch before mutation. Alpha.6 additionally requires the exact executable hash inside every structural mutation, resolves all 50 support/cleanup/sign descriptors before the first world write, and enumerates Endstone's pre-populated block registry before the native descriptor boundary. The Windows candidate is read-only until its independent binary and text boundaries are verified.
 
-Start the alpha.7 qualification session with one command:
+Start the alpha.8 qualification session with one command:
 
 ```text
 /signprobe accept 100 64 100 confirm
@@ -67,7 +67,7 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.0a7-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.0a8-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.log \
   --world-backup post-cleanup-world-backup.zip
 ```
@@ -122,6 +122,12 @@ The probe registers a **partial experimental** `endstone:sign:v2` service; `comp
 4. The player-edit hook is cancellable before the game mutates the sign.
 5. A reviewed native bridge source matches its recorded SHA-256.
 6. Every disposable-world stage probe passes, including client refresh, reconnect, restart persistence, and rollback.
+
+Activation also requires the reviewed manifest to reference SHA-256-bound stage
+and matrix reports. The verifier parses both reports and binds their platform,
+executable, artifacts, run, configuration, world, target, exact 31-probe
+coverage, and successful qualification verdict; copied pass booleans in the
+manifest cannot substitute for those reports.
 
 Until then, advanced operations report `unsupported` and the verified generated manifest stays closed. The tester checks each mutation capability first and records `mutation_attempted: false` when a gate is closed.
 

@@ -6,6 +6,7 @@ Without --allow-incomplete, any missing proof closes the gate with a non-zero ex
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import hashlib
 import json
 from pathlib import Path
@@ -35,6 +36,7 @@ REQUIRED_PROBES = {
     "player_reconnect", "server_restart_persistence",
 }
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
+EXPECTED_TESTER_VERSION = "0.2.0a8"
 
 
 def file_sha256(path: Path) -> str:
@@ -43,6 +45,200 @@ def file_sha256(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _valid_utc_timestamp(value: object) -> bool:
+    if not isinstance(value, str) or not value.strip():
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    offset = parsed.utcoffset()
+    return offset is not None and offset.total_seconds() == 0
+
+
+def _repository_file(
+    root: Path, value: object, label: str, missing: list[str]
+) -> Path | None:
+    raw = str(value or "")
+    relative = Path(raw)
+    if not raw or relative.is_absolute() or ".." in relative.parts:
+        missing.append(label)
+        return None
+    resolved_root = root.resolve()
+    resolved = (resolved_root / relative).resolve()
+    try:
+        resolved.relative_to(resolved_root)
+    except ValueError:
+        missing.append(label)
+        return None
+    if not resolved.is_file():
+        missing.append(label)
+        return None
+    return resolved
+
+
+def _read_json_object(path: Path, label: str, missing: list[str]) -> dict:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        missing.append(f"{label} readable JSON object")
+        return {}
+    if not isinstance(value, dict):
+        missing.append(f"{label} readable JSON object")
+        return {}
+    return value
+
+
+def _validate_stage_report(
+    report: dict, manifest: dict, manifest_stage: dict, missing: list[str]
+) -> None:
+    if report.get("schema") != 1:
+        missing.append("stage report schema=1")
+    if report.get("bds_package_version") != manifest.get("bds_package_version"):
+        missing.append("stage report BDS package match")
+    if report.get("endstone_version") != manifest.get("endstone_version"):
+        missing.append("stage report Endstone version match")
+    if report.get("platform") != manifest.get("platform"):
+        missing.append("stage report platform match")
+    if report.get("server_executable_sha256") != manifest.get("executable", {}).get(
+        "sha256"
+    ):
+        missing.append("stage report executable SHA-256 match")
+    if report.get("tester_version") != EXPECTED_TESTER_VERSION:
+        missing.append(f"stage report tester_version={EXPECTED_TESTER_VERSION}")
+    if report.get("passed") is not True:
+        missing.append("stage report passed=true")
+
+    for field in (
+        "server_executable_sha256",
+        "plugin_sha256",
+        "tester_wheel_sha256",
+        "log_sha256",
+        "world_backup_sha256",
+        "matrix_config_sha256",
+    ):
+        if not HEX64.fullmatch(str(report.get(field, ""))):
+            missing.append(f"stage report {field}")
+    for field in (
+        "world_seed",
+        "world_name",
+        "operator",
+        "matrix_run_id",
+    ):
+        if not str(report.get(field) or "").strip():
+            missing.append(f"stage report {field}")
+    for field in ("started_at_utc", "completed_at_utc"):
+        if not _valid_utc_timestamp(report.get(field)):
+            missing.append(f"stage report {field}")
+    target = report.get("target")
+    if not isinstance(target, dict) or not str(target.get("dimension") or "").strip() or any(
+        type(target.get(axis)) is not int for axis in ("x", "y", "z")
+    ):
+        missing.append("stage report target")
+
+    report_results = report.get("results")
+    manifest_results = manifest_stage.get("results")
+    if not isinstance(report_results, dict) or set(report_results) != REQUIRED_PROBES:
+        missing.append("stage report exact result set")
+        return
+    for probe in sorted(REQUIRED_PROBES):
+        entry = report_results.get(probe)
+        actual_passed = entry.get("passed") if isinstance(entry, dict) else None
+        if actual_passed is not True:
+            missing.append(f"stage report results.{probe}.passed")
+        evidence = str(entry.get("evidence") or "").strip() if isinstance(entry, dict) else ""
+        if not evidence or evidence == "not yet recorded":
+            missing.append(f"stage report results.{probe}.evidence")
+        if (
+            not isinstance(manifest_results, dict)
+            or manifest_results.get(probe) is not actual_passed
+        ):
+            missing.append(f"stage_probe.results.{probe} report match")
+
+
+def _validate_matrix_report(matrix: dict, stage: dict, missing: list[str]) -> None:
+    if matrix.get("schema") != 1 or matrix.get("kind") != "automated-sign-matrix":
+        missing.append("matrix report schema/kind")
+    if matrix.get("mode") != "full_system_acceptance":
+        missing.append("matrix report full_system_acceptance mode")
+    if matrix.get("bds_package_version") != stage.get("bds_package_version"):
+        missing.append("matrix/stage BDS package match")
+    if matrix.get("endstone_version") != stage.get("endstone_version"):
+        missing.append("matrix/stage Endstone version match")
+    if matrix.get("plugin_version") != stage.get("tester_version"):
+        missing.append("matrix/stage tester version match")
+    if matrix.get("platform") != stage.get("platform"):
+        missing.append("matrix/stage platform match")
+    if matrix.get("run_id") != stage.get("matrix_run_id"):
+        missing.append("matrix/stage run ID match")
+    if matrix.get("config_sha256") != stage.get("matrix_config_sha256"):
+        missing.append("matrix/stage config SHA-256 match")
+    config = matrix.get("config")
+    if isinstance(config, dict):
+        calculated = hashlib.sha256(
+            json.dumps(
+                config, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+            ).encode("utf-8")
+        ).hexdigest()
+        if matrix.get("config_sha256") != calculated:
+            missing.append("matrix report config SHA-256")
+    else:
+        missing.append("matrix report config")
+
+    for field in (
+        "server_executable_sha256",
+        "plugin_sha256",
+        "tester_wheel_sha256",
+        "world_name",
+        "operator",
+    ):
+        if matrix.get(field) != stage.get(field):
+            missing.append(f"matrix/stage {field} match")
+    if str(matrix.get("world_seed") or "") != str(stage.get("world_seed") or ""):
+        missing.append("matrix/stage world_seed match")
+
+    if matrix.get("state") != "completed":
+        missing.append("matrix report state=completed")
+    if matrix.get("outcome") != "qualification_passed":
+        missing.append("matrix report outcome=qualification_passed")
+    if matrix.get("activation_eligible") is not False:
+        missing.append("matrix report activation_eligible=false pending review")
+    qualification = matrix.get("qualification")
+    if not isinstance(qualification, dict) or qualification.get("eligible") is not True:
+        missing.append("matrix report qualification.eligible=true")
+    elif list(qualification.get("blockers") or []):
+        missing.append("matrix report qualification blockers empty")
+
+    coverage = matrix.get("coverage")
+    if not isinstance(coverage, dict) or set(coverage) != REQUIRED_PROBES:
+        missing.append("matrix report exact coverage set")
+    else:
+        for probe in sorted(REQUIRED_PROBES):
+            entry = coverage.get(probe)
+            if not isinstance(entry, dict) or entry.get("status") != "passed":
+                missing.append(f"matrix report coverage.{probe}.passed")
+
+    embedded_stage = matrix.get("stage_report")
+    if not isinstance(embedded_stage, dict) or embedded_stage.get("passed") is not True:
+        missing.append("matrix report stage_report.passed=true")
+    else:
+        for field in (
+            "server_executable_sha256",
+            "plugin_sha256",
+            "tester_wheel_sha256",
+        ):
+            if embedded_stage.get(field) != stage.get(field):
+                missing.append(f"matrix embedded stage {field} match")
+
+    cases = matrix.get("cases")
+    target = stage.get("target")
+    first_sign = cases[0].get("sign") if isinstance(cases, list) and cases and isinstance(cases[0], dict) else None
+    if not isinstance(first_sign, dict) or not isinstance(target, dict) or any(
+        first_sign.get(axis) != target.get(axis) for axis in ("x", "y", "z")
+    ) or matrix.get("dimension") != target.get("dimension"):
+        missing.append("matrix/stage target match")
 
 
 def validate(path: Path, root: Path) -> list[str]:
@@ -110,11 +306,32 @@ def validate(path: Path, root: Path) -> list[str]:
     for probe in sorted(REQUIRED_PROBES):
         if results.get(probe) is not True:
             missing.append(f"stage_probe.results.{probe}")
-    report_path = root / str(stage.get("report_path", ""))
-    if not report_path.is_file():
-        missing.append("stage_probe.report_path")
-    elif HEX64.fullmatch(report_hash) and file_sha256(report_path) != report_hash:
-        missing.append("stage_probe report SHA-256 match")
+    report_path = _repository_file(
+        root, stage.get("report_path"), "stage_probe.report_path", missing
+    )
+    report: dict = {}
+    if report_path is not None:
+        if HEX64.fullmatch(report_hash) and file_sha256(report_path) != report_hash:
+            missing.append("stage_probe report SHA-256 match")
+        report = _read_json_object(report_path, "stage report", missing)
+        if report:
+            _validate_stage_report(report, data, stage, missing)
+
+    matrix_hash = str(stage.get("matrix_report_sha256", ""))
+    if not HEX64.fullmatch(matrix_hash):
+        missing.append("stage_probe.matrix_report_sha256")
+    matrix_path = _repository_file(
+        root,
+        stage.get("matrix_report_path"),
+        "stage_probe.matrix_report_path",
+        missing,
+    )
+    if matrix_path is not None:
+        if HEX64.fullmatch(matrix_hash) and file_sha256(matrix_path) != matrix_hash:
+            missing.append("stage_probe matrix report SHA-256 match")
+        matrix = _read_json_object(matrix_path, "matrix report", missing)
+        if matrix and report:
+            _validate_matrix_report(matrix, report, missing)
 
     bridge = data.get("bridge", {})
     if bridge.get("reviewed") is not True:

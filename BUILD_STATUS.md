@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.7**
+Version: **0.2.0-alpha.8**
 
 ## Portable core
 
@@ -47,7 +47,7 @@ Version: **0.2.0-alpha.7**
 - Automated tester: strict 48-case default matrix, one operation per scheduled
   interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup;
   the hosted alpha.6 run passed all 48 material/form cases.
-- Alpha.7 full-system coordinator: `/signprobe accept <x> <y> <z> confirm`
+- Alpha.8 full-system coordinator: `/signprobe accept <x> <y> <z> confirm`
   forces the immutable 12-material x 4-form profile, starts the 31-probe stage
   report, defers cleanup for reconnect/restart evidence, and derives a strict
   qualification verdict. Closed capabilities, skips, pending/manual coverage,
@@ -62,6 +62,10 @@ Version: **0.2.0-alpha.7**
 - Full-system validator: requires 48/48 cases, 31/31 evidence-backed probes,
   zero failed/skipped steps, all pre-stage native capabilities, matching report
   identities, and completed conflict-free cleanup for each platform.
+- Native activation verifier: requires SHA-256-bound stage and matrix reports
+  and validates their platform, executable, artifact, run, configuration,
+  world, target, coverage, and qualification identities instead of trusting
+  duplicated manifest result booleans.
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
   within the 22-byte boundary across the hosted matrix; client rendering is not
   inferred.
@@ -73,13 +77,13 @@ Version: **0.2.0-alpha.7**
   legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
-Use the alpha.7 native candidate only in a backed-up disposable world. It is intended
+Use the alpha.8 native candidate only in a backed-up disposable world. It is intended
 to collect the live evidence required for the next boundary, not for production.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
 `dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
 48 default cases, including the corrected legacy dark-oak standing and wall
 identifiers. Expected unsupported advanced and manual checks remained
 skipped/pending, so stage-probe and complete-control activation remain closed.
-Alpha.7 intentionally converts those same gaps into a failed qualification
+Alpha.8 intentionally converts those same gaps into a failed qualification
 verdict instead of a supported-scope success. It does not claim that the gaps
 have been implemented.

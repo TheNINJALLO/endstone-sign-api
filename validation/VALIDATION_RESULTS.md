@@ -1,26 +1,35 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.7`
+Release: `0.2.0-alpha.8`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-07-30`
 
 ## Result
 
-The portable C++20 and Python API layers pass local validation. The alpha.7
+The portable C++20 and Python API layers pass local validation. The alpha.8
 source contains an exact-gated Linux plain-text/structural matrix probe
 candidate; the complete native bridge remains disabled because the remaining
 symbol/ABI proof, player-edit hook, reviewed bridge, and disposable-world
 probes are incomplete.
 
-Alpha.7 adds a distinct strict qualification path. It cannot become green from
-the earlier supported-scope matrix alone: the derived verdict requires all 48
+Alpha.8 consolidates the strict qualification path introduced in alpha.7 and
+fixes successful capability-preflight records so they carry the non-empty
+reason required as qualification evidence. It cannot become green from the
+earlier supported-scope matrix alone: the derived verdict requires all 48
 cases, all 31 probes, every pre-stage native capability, zero skipped/failed
 steps, exact report identity agreement, and ownership-aware cleanup without a
-conflict. The validator is covered by positive and closed-capability regression
-tests. The current partial adapters remain expected qualification blockers.
+conflict. The validator is covered by positive, evidence-contract, and
+closed-capability regression tests. The current partial adapters remain
+expected qualification blockers.
 Seven client/player/reconnect/restart probes remain operator-attested; the
 validator binds their report to exact run and artifact hashes but does not
 independently observe the client actions.
+
+Alpha.8 also hardens the later activation boundary. A verified manifest must
+reference SHA-256-bound stage and matrix reports; the verifier parses their
+31-probe evidence and binds platform, executable, artifacts, run,
+configuration, world, target, coverage, and the successful qualification
+verdict. Duplicated manifest booleans alone can no longer open the gate.
 
 The returned alpha.4 Linux evidence verified the canonical plugin discovery,
 exact executable identity, short unfiltered front/back text, client-visible
@@ -88,7 +97,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `101/101` passed, including live-bridge execution of all 12 server-side full-system probes, semantic full-system evidence validation, exact server/plugin/tester binding, public-air cleanup proof, immutable acceptance cleanup, matrix/stage projection, required-preflight enforcement, identifier inventory, descriptor preflight, and static candidate-ledger coverage |
+| Unit tests | `106/106` passed, including live-bridge execution of all 12 server-side full-system probes, semantic full-system evidence validation, hash-bound activation-stage/matrix verification, exact server/plugin/tester binding, public-air cleanup proof, immutable acceptance cleanup, matrix/stage projection, required-preflight enforcement, identifier inventory, descriptor preflight, and static candidate-ledger coverage |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |
@@ -141,7 +150,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 The following are intentionally unresolved and are required before a verified
 complete-control live plugin may be built:
 
-1. Run the alpha.7 `/signprobe accept` workflow on both platforms and archive
+1. Run the alpha.8 `/signprobe accept` workflow on both platforms and archive
    each `latest-matrix-report.json` together with the
    server log and post-test world-backup hashes.
 2. Locate and behavior-confirm the remaining required symbols independently on

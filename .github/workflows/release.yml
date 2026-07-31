@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.7
+  RELEASE_VERSION: 0.2.0-alpha.8
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -260,7 +260,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Alpha.7 experimental full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33. Use /signprobe accept <x> <y> <z> confirm to start the immutable 48-case and 31-probe session. After the case matrix, the runner invokes the live bridge for advanced text fields, editor lock/unlock, API-event cancellation, replacement, clone, move, and a deterministic adapter rollback check, using ownership-tracked scratch cells. A qualification passes only with 48/48 cases, 31/31 evidence-backed probes, every pre-stage native capability, zero failed or skipped steps, matching stage/matrix binary identity, and conflict-free ownership cleanup. Exact-binary, native fingerprint/ABI, revision, readback, rollback, and ownership gates remain enforced. Current advanced SignBlockActor layers, complete native control, and Windows mutation remain unimplemented; capability skips therefore block a full qualification. This is a downloadable prerelease candidate, not a production plugin. Restore a backup and use only a disposable world.'
+          notes='Alpha.8 is the consolidated final qualification candidate for Endstone 0.11.6 / BDS 1.26.33. It fixes successful capability-preflight evidence so the strict validator can recognize the recorded gate result, and it requires hash-bound stage and matrix reports before native activation. Use /signprobe accept <x> <y> <z> confirm to start the immutable 48-case and 31-probe session. After the case matrix, the runner invokes the live bridge for advanced text fields, editor lock/unlock, API-event cancellation, replacement, clone, move, and a deterministic adapter rollback check, using ownership-tracked scratch cells. A qualification passes only with 48/48 cases, 31/31 evidence-backed probes, every pre-stage native capability, zero failed or skipped steps, matching stage/matrix binary identity, and conflict-free ownership cleanup. Exact-binary, native fingerprint/ABI, revision, readback, rollback, and ownership gates remain enforced. Current advanced SignBlockActor layers, complete native control, and Windows mutation remain unimplemented; capability skips therefore block a full qualification. This is a downloadable prerelease candidate, not a production plugin. Restore a backup and use only a disposable world.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"

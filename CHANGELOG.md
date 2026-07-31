@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0-alpha.8
+
+- Fixed successful native capability preflight records so they include a
+  non-empty evidence reason. This lets the strict qualification validator
+  recognize a gate that genuinely passed, with regression coverage for the
+  evidence contract.
+- Hardened native activation so a manifest's duplicated pass booleans are not
+  sufficient. The verifier now requires hash-bound stage and matrix reports,
+  validates their 31-probe evidence, and binds their platform, executable,
+  artifacts, run, configuration, world, target, and qualification verdict.
+- Consolidated the existing full-system workflow as the final qualification
+  candidate before an official release. No native capability is enabled by
+  this version bump: unresolved advanced, Windows, player-edit, persistence,
+  symbol, ABI, and live-stage requirements remain explicit release blockers.
+
 ## 0.2.0-alpha.7
 
 - Added `/signprobe accept <x> <y> <z> confirm`, a strict full-system

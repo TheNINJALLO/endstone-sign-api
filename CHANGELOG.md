@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.2.0-alpha.9
+
+- Enabled the experimental exact-binary-gated adapter capabilities for sign
+  replacement, cloning, moving, and multi-operation transactions so the
+  strict qualification runner can exercise every implemented structural layer
+  in one disposable-world session.
+- Added a transaction ledger with reverse-order rollback. Existing signs are
+  restored from captured structural and supported text state, while signs
+  created by a failed transaction are independently cleared and verified as
+  air.
+- Fixed the native rollback build failure caused by passing const actor access
+  to the mutating block-actor change notifier, and added a regression guard for
+  that compile-sensitive path.
+- Passed the complete push qualification matrix at commit `77d5c22`: portable
+  C++ and Python lanes, exact BDS 1.26.33 Linux and Windows builds, platform
+  asset checks, wheel smoke tests, and the combined two-wheel verifier.
+- Kept verified complete-control activation fail-closed. The newly exposed
+  structural operations still require the exact runtime/executable gate;
+  Windows live mutation, advanced SignBlockActor fields, player interception,
+  client acknowledgement, reconnect, and restart persistence still require
+  their corresponding qualification evidence.
+
 ## 0.2.0-alpha.8
 
 - Fixed successful native capability preflight records so they include a

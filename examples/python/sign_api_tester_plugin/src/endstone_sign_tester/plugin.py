@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a8"
+    version = "0.2.0a9"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -658,7 +658,7 @@ class SignApiTesterPlugin(Plugin):
             "/signprobe run <x> <y> <z> confirm - automated 12-material x 4-form matrix"
         )
         sender.send_message(
-            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.8 qualification"
+            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.9 qualification"
         )
         sender.send_message(
             "/signprobe runstatus; /signprobe cancel; /signprobe cleanup confirm; "

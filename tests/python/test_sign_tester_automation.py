@@ -221,7 +221,7 @@ class SignTesterAutomationTests(unittest.TestCase):
     def test_run_report_path_rejects_traversal(self) -> None:
         config = self.load_default()
         report = automation.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -237,7 +237,7 @@ class SignTesterAutomationTests(unittest.TestCase):
     def test_skipped_advanced_steps_never_make_report_activation_eligible(self) -> None:
         config = self.load_default()
         report = automation.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -267,7 +267,7 @@ class SignTesterAutomationTests(unittest.TestCase):
             name: True for name in automation.REQUIRED_QUALIFICATION_CAPABILITIES
         }
         report = automation.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -331,7 +331,7 @@ class SignTesterAutomationTests(unittest.TestCase):
         stage = {
             "passed": True,
             "completed_at_utc": automation.utc_now(),
-            "tester_version": "0.2.0a7",
+            "tester_version": "0.2.0a8",
             "matrix_run_id": report["run_id"],
             "matrix_config_sha256": report["config_sha256"],
             "platform": "linux-x64",
@@ -373,7 +373,7 @@ class SignTesterAutomationTests(unittest.TestCase):
             config_path = automation.install_default_config(data_folder)
             config = automation.load_config(config_path)
             report = automation.new_run_report(
-                plugin_version="0.2.0a7",
+                plugin_version="0.2.0a8",
                 platform="linux-x64",
                 operator="tester",
                 dimension="Overworld",

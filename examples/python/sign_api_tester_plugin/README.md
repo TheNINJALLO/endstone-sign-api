@@ -9,10 +9,10 @@ Install the native plugin and matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands place and edit
 sign blocks and may remove only cells recorded as runner-owned.
 
-## Alpha.7 full-system qualification
+## Alpha.8 full-system qualification
 
 The standalone native download is already named
-`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.7
+`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.8
 tester wheel directly in the server's `plugins/` directory. The tester also
 recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
@@ -106,7 +106,7 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.0a7-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.0a8-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.log \
   --world-backup post-cleanup-world-backup.zip
 ```
@@ -180,6 +180,6 @@ The earlier explicit-coordinate workflow remains available:
 Use `/signprobe record`, `/signprobe meta`, and `/signprobe finish` only for the
 strict schema-1 activation report. Finish passes only when all 31 probes have
 non-empty passing evidence and all required SHA-256 fields are valid. A matrix
-report supplements that evidence; the alpha.7 qualifier additionally requires
+report supplements that evidence; the alpha.8 qualifier additionally requires
 truthful native capabilities and zero skipped steps, so hand-recorded evidence
 cannot turn the current missing native layers into a passing result.

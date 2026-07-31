@@ -278,6 +278,8 @@
   "stage_probe": {
     "report_path": "native/probes/windows-x64-1.26.33.1-stage-probe.json",
     "report_sha256": "",
+    "matrix_report_path": "",
+    "matrix_report_sha256": "",
     "passed": false,
     "results": {
       "standing_sign_place": false,

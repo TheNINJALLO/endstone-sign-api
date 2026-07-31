@@ -592,7 +592,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             name: True for name in automation.REQUIRED_QUALIFICATION_CAPABILITIES
         }
         matrix = automation.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -685,7 +685,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
         stage["log_sha256"] = hashlib.sha256(self.LOG_PAYLOAD).hexdigest()
         stage["world_backup_sha256"] = hashlib.sha256(self.BACKUP_PAYLOAD).hexdigest()
         stage["world_seed"] = "12345"
-        stage["tester_version"] = "0.2.0a7"
+        stage["tester_version"] = "0.2.0a8"
         stage["matrix_run_id"] = matrix["run_id"]
         stage["matrix_config_sha256"] = matrix["config_sha256"]
         stage["world_name"] = matrix["world_name"]
@@ -718,7 +718,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             plugin_path = folder / "plugin.so"
             tester_wheel_path = (
                 folder
-                / "endstone_sign_tester-0.2.0a7-cp314-cp314-linux_x86_64.whl"
+                / "endstone_sign_tester-0.2.0a8-cp314-cp314-linux_x86_64.whl"
             )
             log_path = folder / "server.log"
             backup_path = folder / "world-backup.zip"

@@ -706,27 +706,27 @@ class SignTesterDiagnosticTests(unittest.TestCase):
             platform_tag = (
                 "win_amd64" if sys.platform == "win32" else "linux_x86_64"
             )
-            alpha6 = (
-                plugins
-                / f"endstone_sign_tester-0.2.0a6-cp314-cp314-{platform_tag}.whl"
-            )
             alpha7 = (
                 plugins
                 / f"endstone_sign_tester-0.2.0a7-cp314-cp314-{platform_tag}.whl"
             )
-            alpha6.write_bytes(b"old")
+            alpha8 = (
+                plugins
+                / f"endstone_sign_tester-0.2.0a8-cp314-cp314-{platform_tag}.whl"
+            )
+            alpha7.write_bytes(b"old")
 
             selected, discovery = PLUGIN_CLASS._discover_tester_wheel(
-                working_directory, "0.2.0a7"
+                working_directory, "0.2.0a8"
             )
             self.assertIsNone(selected)
             self.assertEqual(discovery["status"], "not_found")
 
-            alpha7.write_bytes(b"current")
+            alpha8.write_bytes(b"current")
             selected, discovery = PLUGIN_CLASS._discover_tester_wheel(
-                working_directory, "0.2.0a7"
+                working_directory, "0.2.0a8"
             )
-            self.assertEqual(selected, alpha7.resolve())
+            self.assertEqual(selected, alpha8.resolve())
             self.assertEqual(discovery["status"], "selected")
 
     def test_write_text_preflight_blocks_mutation_and_records_why(self) -> None:
@@ -771,6 +771,23 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertEqual(harness.invocations[0][1]["expected_revision"], 6)
         self.assertEqual(harness.invocations[0][2]["status"], "applied")
+
+    def test_successful_mutation_preflight_records_qualification_evidence(
+        self,
+    ) -> None:
+        bridge = FakeBridge(write_text=True)
+
+        ready, reason, status = PLUGIN_CLASS._mutation_preflight(
+            bridge,
+            object(),
+            "automated matrix",
+            ("read_text", "write_text", "front_and_back"),
+        )
+
+        self.assertTrue(ready)
+        self.assertIn("gate passed", reason)
+        self.assertIn("test-adapter", reason)
+        self.assertTrue(status["available"])
 
     def test_advanced_fields_require_their_specific_capability(self) -> None:
         for field, keyword in (
@@ -896,7 +913,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -956,7 +973,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -999,7 +1016,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1062,7 +1079,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = LyingRemovalBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1106,7 +1123,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1152,7 +1169,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1227,7 +1244,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1281,7 +1298,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1329,7 +1346,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1371,7 +1388,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         config = PLUGIN_MODULE.load_acceptance_config()
         platform = PLUGIN_CLASS._platform()
         matrix = PLUGIN_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform=platform,
             operator="tester",
             dimension="Overworld",
@@ -1396,7 +1413,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
         stage.update(
             {
-                "tester_version": "0.2.0a7",
+                "tester_version": "0.2.0a8",
                 "matrix_run_id": matrix["run_id"],
                 "matrix_config_sha256": matrix["config_sha256"],
                 "world_name": "test-world",
@@ -1433,7 +1450,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.0a7",
+            plugin_version="0.2.0a8",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",

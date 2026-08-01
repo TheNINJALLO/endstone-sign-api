@@ -61,8 +61,10 @@ expect('version = "0.2.0a9"' in pyproject, "Python project version")
 expect('__version__ = "0.2.0a9"' in init, "Python package version")
 expect('version = "0.2.0a9"' in tester_pyproject, "tester wheel version")
 expect('version = "0.2.0a9"' in tester_plugin, "tester plugin version")
-expect('module.attr("__version__") = ENDSTONE_SIGN_VERSION' in live_bindings,
+expect('module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION' in live_bindings,
        "live bridge build-derived version")
+expect('ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}"' in cmake,
+       "CMake live bridge PEP 440 version definition")
 expect('module.def("place"' in live_bindings, "live bridge blank placement binding")
 for binding in (
     "set_extended_text",

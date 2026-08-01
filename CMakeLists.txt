@@ -34,6 +34,25 @@ if(NOT ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^${ENDSTONE_SIGN_PROJECT_VERSION_R
         "SOURCE_RELEASE.json version '${ENDSTONE_SIGN_RELEASE_VERSION}' does not match project version '${PROJECT_VERSION}'")
 endif()
 
+# SOURCE_RELEASE.json uses release-tag spelling while Python package metadata
+# must use PEP 440 spelling. Derive the bridge version here so the native
+# module and its containing wheel cannot silently advertise different builds.
+if(ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-alpha\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}a${CMAKE_MATCH_2}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-beta\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}b${CMAKE_MATCH_2}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}rc${CMAKE_MATCH_2}")
+else()
+    message(FATAL_ERROR
+        "Cannot derive a PEP 440 bridge version from release version '${ENDSTONE_SIGN_RELEASE_VERSION}'")
+endif()
+
 set(ENDSTONE_SIGN_CORE_SOURCES
     src/text.cpp
     src/placement.cpp
@@ -393,7 +412,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         )
         target_compile_features(_endstone_sign_live PRIVATE cxx_std_20)
         target_compile_definitions(_endstone_sign_live PRIVATE
-            ENDSTONE_SIGN_VERSION="${ENDSTONE_SIGN_RELEASE_VERSION}")
+            ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}")
         target_include_directories(_endstone_sign_live PRIVATE
             include
             ${endstone_SOURCE_DIR}/include

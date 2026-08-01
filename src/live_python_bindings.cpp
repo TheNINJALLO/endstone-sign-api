@@ -19,8 +19,8 @@
 
 namespace py = pybind11;
 
-#ifndef ENDSTONE_SIGN_VERSION
-#define ENDSTONE_SIGN_VERSION "0.2.0"
+#ifndef ENDSTONE_SIGN_PYTHON_VERSION
+#define ENDSTONE_SIGN_PYTHON_VERSION "0.2.0"
 #endif
 
 namespace endstone_sign {
@@ -554,7 +554,7 @@ py::dict openEditor(endstone::Server &server, endstone::Player &player,
 
 PYBIND11_MODULE(_endstone_sign_live, module) {
     module.doc() = "Live Python bridge to endstone:sign:v2";
-    module.attr("__version__") = ENDSTONE_SIGN_VERSION;
+    module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION;
     module.def("available", &endstone_sign::available, py::arg("server"));
     module.def("status", &endstone_sign::status, py::arg("server"));
     module.def("add_event_listener", &endstone_sign::addEventListener,

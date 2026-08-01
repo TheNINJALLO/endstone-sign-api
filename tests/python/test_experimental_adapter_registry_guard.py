@@ -5,6 +5,8 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_SOURCE = ROOT / "src" / "experimental_bds_26_30_adapter.cpp"
 RUNTIME_BRIDGE_SOURCE = ROOT / "src" / "sign_native_runtime_bridge.cpp"
+LIVE_BINDINGS_SOURCE = ROOT / "src" / "live_python_bindings.cpp"
+CMAKE_SOURCE = ROOT / "CMakeLists.txt"
 
 
 class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
@@ -76,6 +78,27 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             source,
         )
         self.assertIn("level_->getNewUniqueID()", source)
+
+    def test_live_bridge_uses_derived_pep440_release_version(self) -> None:
+        cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
+        bindings = LIVE_BINDINGS_SOURCE.read_text(encoding="utf-8")
+
+        self.assertIn(
+            'set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}a${CMAKE_MATCH_2}")',
+            cmake,
+        )
+        self.assertIn(
+            'ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}"',
+            cmake,
+        )
+        self.assertNotIn(
+            'ENDSTONE_SIGN_VERSION="${ENDSTONE_SIGN_RELEASE_VERSION}")',
+            cmake[cmake.index("pybind11_add_module(_endstone_sign_live") :],
+        )
+        self.assertIn(
+            'module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION;',
+            bindings,
+        )
 
 
 if __name__ == "__main__":

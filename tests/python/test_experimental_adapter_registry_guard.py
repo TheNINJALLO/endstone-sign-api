@@ -70,6 +70,12 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             source,
         )
         self.assertEqual(source.count("ENDSTONE_SIGN_LOCAL_FALLBACK Actor *"), 1)
+        self.assertIn(
+            "ENDSTONE_SIGN_LOCAL_FALLBACK ActorUniqueID "
+            "Actor::getOrCreateUniqueID() const",
+            source,
+        )
+        self.assertIn("level_->getNewUniqueID()", source)
 
 
 if __name__ == "__main__":

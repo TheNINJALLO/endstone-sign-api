@@ -305,6 +305,31 @@ class SignCapabilities:
     stage_probe_passed: bool = False
 
     @property
+    def supported_release(self) -> bool:
+        return all((
+            self.capture,
+            self.place,
+            self.remove,
+            self.replace,
+            self.clone,
+            self.move,
+            self.atomic_transactions,
+            self.read_text,
+            self.write_text,
+            self.front_and_back,
+            self.per_line_write,
+            self.filtered_text,
+            self.owner_xuid,
+            self.hide_glow_outline,
+            self.persist_formatting,
+            self.api_edit_events,
+            self.client_updates,
+            self.exact_build_match,
+            self.exact_binary_hash_match,
+            self.symbols_validated,
+        ))
+
+    @property
     def complete_control(self) -> bool:
         return all((
             self.capture,

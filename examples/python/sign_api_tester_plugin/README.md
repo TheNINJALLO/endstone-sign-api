@@ -9,32 +9,39 @@ Install the native plugin and matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands place and edit
 sign blocks and may remove only cells recorded as runner-owned.
 
-## Alpha.9 full-system qualification
+## v0.2.0 Linux diagnostics
 
 The Linux-only standalone native download is named
-`endstone_sign_bds_1_26_33.so`; place it and the matching alpha.9 Linux tester
+`endstone_sign_bds_1_26_33.so`; place it and the matching v0.2.0 Linux tester
 wheel directly in the server's `plugins/` directory. The tester also
 recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
 working directory.
 
 Verify the downloaded release before installation. `SHA256SUMS.txt` covers all
-four Linux candidate assets; the platform manifest covers the native library,
-ZIP, and matching tester wheel:
+four Linux package assets; the platform manifest covers the native library,
+ZIP, and matching tester wheel. The GitHub release therefore contains those
+four package assets plus `SHA256SUMS.txt`:
 
 ```bash
-gh release download v0.2.0-alpha.9 \
+gh release download v0.2.0 \
   --repo TheNINJALLO/endstone-sign-api \
-  --dir alpha9-assets
-cd alpha9-assets
+  --dir sign-api-0.2.0
+cd sign-api-0.2.0
 sha256sum --check SHA256SUMS.txt
-sha256sum --check endstone-sign-api-v0.2.0-alpha.9-bds-1.26.33-linux-x64.sha256
+sha256sum --check endstone-sign-api-v0.2.0-bds-1.26.33-linux-x64.sha256
 ```
 
 Choose an air-filled disposable arena large enough for a 28-by-17-block
 default footprint. The command coordinates are the arena anchor and the signs
-start one block above its Y coordinate. Start the immutable release
-qualification profile with:
+start one block above its Y coordinate. Test the stable supported scope with:
+
+```text
+/signprobe run 100 64 100 confirm
+```
+
+Maintainers developing the known unavailable capabilities can start the strict
+optional complete-control profile with:
 
 ```text
 /signprobe accept 100 64 100 confirm
@@ -142,13 +149,13 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
 
 The final command must print `full-system acceptance VALID`. This result
-qualifies only the exact Linux artifacts supplied to the validator; alpha.9
+qualifies only the exact Linux artifacts supplied to the validator; v0.2.0
 does not publish or claim support for a Windows native DLL or tester wheel. The
 validator rejects anything short of 48/48 cases, 31/31 probes, all required
 capabilities, zero failed/skipped/manual coverage, exact identity agreement,
@@ -175,12 +182,14 @@ the support still matches the configured block.
 ## Capability boundaries
 
 On the exact Linux server, status must show adapter
-`bds-1.26.33.1-linux-release`, with every pre-stage native capability true
-before acceptance can start. The candidate covers both-side text, filtered
-text and TextObjects, owner XUID, color/glow/outline/formatting fields, wax,
-editor locking, profanity state, placement/removal/replacement/clone/move,
-atomic transactions, client updates, and API/player edit events. Any closed
-capability is a release blocker rather than a skipped test.
+`bds-1.26.33.1-linux-release` and `supported_release: true` before the stable
+matrix starts. Version 0.2.0 covers both-side plain and filtered text, owner
+XUID, outline/formatting flags, placement/removal/replacement/clone/move,
+atomic transactions, client updates, and API edit events. TextObjects, color,
+glow, wax, editor locking/opening, player edit interception, restart-persistence
+certification, and `complete_control` remain false. Those closed capabilities
+block only the optional complete-control profile, not the supported v0.2.0
+matrix.
 
 Client refresh, editor UI acknowledgement, player edit interception,
 reconnect, and restart persistence cannot be proven by one uninterrupted
@@ -206,7 +215,7 @@ The earlier explicit-coordinate workflow remains available:
 Use `/signprobe record`, `/signprobe meta`, and `/signprobe finish` only for the
 strict schema-1 activation report. Finish passes only when all 31 probes have
 non-empty passing evidence and all required SHA-256 fields are valid. A matrix
-report supplements that evidence; the alpha.9 qualifier additionally requires
+report supplements that evidence; the optional complete-control qualifier requires
 truthful native capabilities and zero skipped steps, so hand-recorded evidence
 cannot turn the current missing native layers into a passing result.
 

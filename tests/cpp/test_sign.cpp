@@ -187,6 +187,21 @@ int main() {
     const auto caps = service.capabilities();
     assert(caps.capture && caps.place && caps.atomic_transactions);
     assert(!caps.completeControl());
+    assert(!caps.supportedRelease());
+
+    SignCapabilities stable;
+    stable.capture = stable.place = stable.remove = true;
+    stable.replace = stable.clone = stable.move = stable.atomic_transactions = true;
+    stable.read_text = stable.write_text = stable.front_and_back = true;
+    stable.per_line_write = stable.filtered_text = stable.owner_xuid = true;
+    stable.hide_glow_outline = stable.persist_formatting = true;
+    stable.api_edit_events = stable.client_updates = true;
+    stable.exact_build_match = stable.exact_binary_hash_match = true;
+    stable.symbols_validated = true;
+    assert(stable.supportedRelease());
+    assert(!stable.completeControl());
+    stable.write_text = false;
+    assert(!stable.supportedRelease());
 
     const SignLocation origin{"overworld", 10, 64, 20};
     auto place_request = standing(origin, SignMaterial::PaleOak, "Kingdom");

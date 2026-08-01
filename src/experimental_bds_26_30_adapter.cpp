@@ -42,6 +42,10 @@
 #define ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION 0
 #endif
 
+#ifndef ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+#define ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE 0
+#endif
+
 #if defined(__linux__)
 #include <link.h>
 #endif
@@ -889,13 +893,13 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
   public:
     explicit ExperimentalBds2630SignAdapter(endstone::Server &server)
         : server_(server), exact_runtime_(exactRuntime(server)) {
-#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && !ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
         installPlayerEditHook();
 #endif
     }
 
     ~ExperimentalBds2630SignAdapter() override {
-#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && !ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
         uninstallPlayerEditHook();
 #endif
     }
@@ -959,6 +963,19 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         result.restart_persistence = complete_native_gate;
         result.exact_binary_hash_match = complete_native_gate;
         result.symbols_validated = complete_native_gate;
+#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+        // The first stable Linux release exposes only live-proven fields. Keep
+        // known failures and client-only/manual surfaces unavailable so callers
+        // cannot mistake an implemented boundary for a supported contract.
+        result.text_objects = false;
+        result.text_color = false;
+        result.glowing = false;
+        result.waxed = false;
+        result.editor_lock = false;
+        result.open_editor = false;
+        result.player_edit_events = false;
+        result.restart_persistence = false;
+#endif
         // Source control remains fail-closed. The activation workflow is the
         // only writer that can embed a reviewed disposable-world pass here.
         result.stage_probe_passed = complete_native_gate &&
@@ -1071,6 +1088,22 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(patch.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
+#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+        const auto unsupported_text = [](const std::optional<SignTextPatch> &side) {
+            return side &&
+                   (side->text_object || side->message_is_text_object ||
+                    side->argb || side->glowing);
+        };
+        if (unsupported_text(patch.front) || unsupported_text(patch.back) ||
+            patch.waxed || patch.locked_for_editing_by ||
+            patch.locked_for_editing_xuid) {
+            return {
+                SignApplyStatus::Unsupported,
+                "v0.2.0 does not support text objects, color, glow, wax, or editor locks",
+                current->revision,
+            };
+        }
+#endif
 #if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (force) {
             return {
@@ -1704,6 +1737,21 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 0,
             };
         }
+#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+        const auto unsupported_text = [](const SignText &side) {
+            return side.message_is_text_object || !side.text_object.empty() ||
+                   side.argb != 0xFF000000u || side.glowing;
+        };
+        if (unsupported_text(request.front) || unsupported_text(request.back) ||
+            request.waxed || request.locked_for_editing_by != -1 ||
+            request.locked_for_editing_xuid) {
+            return {
+                SignApplyStatus::Unsupported,
+                "v0.2.0 placement does not support text objects, color, glow, wax, or editor locks",
+                0,
+            };
+        }
+#endif
 #if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (requiresSignNbt(request))
             return nbtUnsupported(0);
@@ -2216,6 +2264,15 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
 
     SignApplyResult openEditor(endstone::Player &player,
                                const SignOpenEditorRequest &request) override {
+#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+        (void)player;
+        (void)request;
+        return {
+            SignApplyStatus::Unsupported,
+            "v0.2.0 does not support editor locking or editor opening",
+            0,
+        };
+#endif
         if (!exact_runtime_)
             return runtimeMismatch();
         if (!text_bridge_.executableIdentityMatch())

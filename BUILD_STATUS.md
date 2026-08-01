@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.9**
+Version: **0.2.0**
 
 ## Portable core
 
@@ -28,17 +28,16 @@ Version: **0.2.0-alpha.9**
 - The separate alpha.6 Linux byte-candidate ledger passes its exact-ELF range,
   full-hash, and unique-entry-fingerprint audit; it remains non-activating static
   evidence only.
-- Full Linux bridge source: implemented in the guarded release-candidate wrapper;
-  the generated activation proof remains absent until live acceptance passes.
-- Stage probe: not passed.
-- Experimental service registration: enabled with every implemented pre-stage
-  capability in the disposable-server candidate.
+- Full Linux bridge source: implemented behind exact runtime and ABI guards.
+- Stable supported service registration: enabled when
+  `SignCapabilities::supportedRelease()` passes.
+- Optional complete-control stage probe: not passed.
 - Linux structural mutation: executable-hash gated; blank placement,
   structural capture, replacement, clone, move, no-drop removal, UI-only
-  editor dispatch, and multi-operation rollback are exposed for the alpha.9
-  qualification run. The supported placement/text workflow passed the hosted
-  48-case alpha.6 matrix; the newly exposed structural layers still require
-  alpha.9 disposable-world evidence.
+  and multi-operation rollback are exposed by v0.2.0. Editor dispatch remains
+  unavailable. The supported placement/text workflow passed the hosted
+  48-case alpha.6 matrix, while the latest run validated replacement, clone,
+  move, API cancellation, and atomic rollback.
 - Canonical sign identifier inventory: all 36 IDs are pinned to both exact
   executable identities; the exact Linux binary scan passed 36/36.
 - Descriptor safety: the tester resolves its support, cleanup air, and all 48
@@ -48,7 +47,7 @@ Version: **0.2.0-alpha.9**
 - Automated tester: strict 48-case default matrix, one operation per scheduled
   interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup;
   the hosted alpha.6 run passed all 48 material/form cases.
-- Alpha.9 full-system coordinator: `/signprobe accept <x> <y> <z> confirm`
+- Optional complete-control coordinator: `/signprobe accept <x> <y> <z> confirm`
   forces the immutable 12-material x 4-form profile, starts the 31-probe stage
   report, defers cleanup for reconnect/restart evidence, and derives a strict
   qualification verdict. Closed capabilities, skips, pending/manual coverage,
@@ -70,22 +69,23 @@ Version: **0.2.0-alpha.9**
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
   within the 22-byte boundary across the hosted matrix; client rendering is not
   inferred.
-- Advanced SignBlockActor fields: color, glow, outline, wax, filtered text,
-  TextObject, owner, formatting flags, profanity state, and editor locking are
-  implemented behind the exact Linux native gates and must pass live readback.
+- Stable advanced fields: filtered text, owner XUID, hidden-outline and
+  formatting flags passed live mutation/readback/restore. Text objects, color,
+  glow, wax, editor locking/opening, player edit interception, and restart
+  persistence are explicitly unavailable in v0.2.0.
 - Standalone native assets: published under the canonical install-ready
   `endstone_sign_bds_1_26_33` filename; tester discovery also recognizes the
   legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
-Use the alpha.9 native candidate only in a backed-up disposable world until its
-full Linux acceptance report passes. It is intended to collect the live evidence
-required for the release boundary, not to bypass that evidence.
+Use normal backup practices for production servers and test plugin integrations
+before deployment. The stable service fails closed on runtime identity or
+capability mismatch; `/signprobe accept` remains a disposable-world diagnostic
+for future complete-control work.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
 `dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
 48 default cases, including the corrected legacy dark-oak standing and wall
 identifiers. Expected unsupported advanced and manual checks remained
 skipped/pending, so stage-probe and complete-control activation remain closed.
-Alpha.9 opens the implemented structural paths to that strict qualification
-while leaving unavailable native layers closed. It does not claim verified
-complete control until the bound platform evidence passes.
+Version 0.2.0 releases the supported Linux text/structure tier while leaving
+unavailable native layers closed. It does not claim complete control.

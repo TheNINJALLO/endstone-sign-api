@@ -1,54 +1,47 @@
 # Endstone Sign API
 
-**Release:** `v0.2.0-alpha.9`
+**Release:** `v0.2.0`
 
 **Service ABI:** `endstone:sign:v2`  
 **Target:** Minecraft Bedrock Dedicated Server package `1.26.33.1`, runtime `26.33`, Endstone `v0.11.6`
 
-Endstone Sign API defines complete, typed control over the entire Bedrock sign lifecycle. It covers standing signs, wall signs, ceiling-hanging signs, and wall-hanging signs in both C++ and Python.
+Endstone Sign API publishes a typed C++ service for Linux Endstone plugins that
+need revision-safe control of standing, wall, and hanging signs.
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.9 is the consolidated Linux x64 full-system qualification build. It exposes the exact-binary-gated native sign lifecycle so the strict runner can exercise every implemented layer in one session. The release publishes the install-ready `endstone_sign_bds_1_26_33.so`, Linux SDK ZIP and checksum, and CPython 3.14 Linux tester wheel. No Windows native DLL or wheel is part of this release.
+Version 0.2.0 is the first supported Linux x64 release. It registers
+`endstone:sign:v2` ABI 2 on exact BDS `1.26.33.1` with Endstone `0.11.6` and
+supports capture, placement, no-drop removal, front/back text, per-line writes,
+filtered text, owner XUID, hidden-outline and formatting flags, API edit events,
+replacement, clone, move, and atomic transactions. Each mutation uses a fresh
+revision, native readback, client update, and rollback where applicable.
 
-Alpha.9 turns on the implemented native operations only when the exact runtime,
-executable, symbol, and ABI gates match. `/signprobe accept` runs the
-complete 48-case profile, starts the exact 31-probe stage report, and makes
-every remaining closed capability, failed or skipped step, pending
-client/reconnect/restart checkpoint, identity mismatch, or cleanup conflict a
-release blocker. Exact-binary, ownership, revision, native-readback, and
-rollback safety gates remain mandatory.
+The adapter loads only when the running `bedrock_server` matches the pinned
+Linux executable SHA-256
+`61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`
+and the required function, vtable, representation, and ABI fingerprints match.
+Consumers must require `capabilities().supportedRelease()` and every optional
+capability they use.
 
-Alpha.5 is superseded: its hosted Linux matrix passed the first 20 cases, then
-aborted at dark-oak standing placement because that release generated
-`minecraft:dark_oak_standing_sign`; Bedrock uses the legacy
-`minecraft:darkoak_standing_sign` spelling. The returned alpha.6 hosted matrix
-passed all 48 default material/form cases, including the corrected legacy
-dark-oak standing and wall identifiers.
+Known v0.2.0 limitations are advertised as false capabilities: text objects,
+ARGB color, glow, wax, editor locking/opening, player edit interception,
+restart-persistence certification, and `completeControl()`. The strict
+31-probe harness remains available for developing those later layers, but its
+known failures do not disable the supported v0.2.0 service.
 
-On Linux x64, the release adapter opens only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and every required native function hash, vtable check, and ABI guard matches. The candidate implements capture and mutation of both sides, plain/filtered/TextObject content, ARGB color, glow, outline visibility, formatting persistence, owner XUID, wax, editor locks, profanity flags, placement/removal/replacement/clone/move, atomic rollback, and cancellable player-edit events. Mutations require native readback and attempt verified rollback on failure.
+## Install the Linux release
 
-Those Linux paths are implemented but remain an experimental qualification boundary until the disposable-world run below passes. Binary, symbol, representation, revision, ownership, readback, client-update, and rollback mismatches fail closed. Placement pre-resolves the complete descriptor plan before the first world write and enumerates Endstone's pre-populated registry rather than creating unknown descriptors.
-
-## Full-release certification
-
-A green GitHub build proves that the source compiles, tests pass, and the
-release assets are internally consistent. It does **not** prove that every
-native operation works against a real Bedrock client and world. Use the
-following sequence for the final Linux qualification. Use a backed-up,
-disposable world and the exact BDS `1.26.33.1` executable; do not run this on a
-production world.
-
-Download every alpha.9 asset and verify both the combined release manifest and
-the Linux package manifest:
+Download the four Linux package assets plus `SHA256SUMS.txt`, then verify both
+checksum manifests:
 
 ```bash
-gh release download v0.2.0-alpha.9 \
+gh release download v0.2.0 \
   --repo TheNINJALLO/endstone-sign-api \
-  --dir alpha9-assets
-cd alpha9-assets
+  --dir sign-api-0.2.0
+cd sign-api-0.2.0
 sha256sum --check SHA256SUMS.txt
-sha256sum --check endstone-sign-api-v0.2.0-alpha.9-bds-1.26.33-linux-x64.sha256
+sha256sum --check endstone-sign-api-v0.2.0-bds-1.26.33-linux-x64.sha256
 ```
 
 Stop the test server, install the matching native plugin and CPython 3.14 tester
@@ -57,12 +50,12 @@ wheel together, and start it through
 from the server root:
 
 ```bash
-SERVER_ROOT=/srv/endstone-alpha9
+SERVER_ROOT=/srv/endstone
 install -D -m 0644 endstone_sign_bds_1_26_33.so \
   "$SERVER_ROOT/plugins/endstone_sign_bds_1_26_33.so"
 install -D -m 0644 \
-  endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl \
-  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl"
+  endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl \
+  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl"
 cd "$SERVER_ROOT"
 endstone 2>&1 | tee acceptance-server.log
 ```
@@ -72,17 +65,26 @@ entire default 28-by-17-block footprint must be air:
 
 ```text
 /signprobe status
-/signprobe accept 100 64 100 confirm
+/signprobe run 100 64 100 confirm
 /signprobe runstatus
 ```
 
-`status` must identify the exact adapter and executable and report every
-qualification capability except `stage_probe_passed` as true. The acceptance
-command then runs all 48 material/form cases and the 12 additional server-side
-operations: filtered text, text-object JSON, owner XUID, hidden glow outline,
-formatting persistence, editor lock/unlock, cancellable API edits, replacement,
-clone, move, and atomic rollback. Any false capability, failure, skip, crash, or
-cleanup conflict is a release blocker; do not hand-record it as a pass.
+`status` must identify `bds-1.26.33.1-linux-release`, and
+`supported_release` must be true. The supported matrix exercises all 48
+material/form combinations and the text operations used by normal plugins.
+
+### Optional complete-control diagnostics
+
+Maintainers working on the known unavailable capabilities can run the stricter
+profile in a backed-up disposable world:
+
+```text
+/signprobe accept 100 64 100 confirm
+```
+
+This extended profile is expected to remain blocked until the capabilities
+listed above are implemented and accepted. A false capability is never turned
+on or treated as a pass.
 
 After the automated work reports that guided evidence remains, perform and
 record the seven client/operator checkpoints. Replace the example evidence with
@@ -135,22 +137,22 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
 
-The only passing final line is `full-system acceptance VALID`. The validator
+The optional complete-control validator passes only when its final line is
+`full-system acceptance VALID`. It
 requires 48/48 cases, 31/31 probes, zero failed/skipped/manual coverage, every
 pre-stage native capability, matching run/config/world/binary identity, and
 conflict-free cleanup. The seven guided results are operator attestations, so a
 release reviewer must also inspect their notes and bound log/backup rather than
 treating non-empty text as independent client proof.
 
-This release is Linux x64 only. A valid result qualifies the exact Linux `.so`,
-SDK package, and tester wheel used by that run; it makes no Windows support
-claim. Source compilation and a previously green supported-scope matrix are not
-substitutes for this strict live acceptance result.
+This release is Linux x64 only and makes no Windows native support claim. The
+optional strict result qualifies future complete-control work; it is not the
+v0.2.0 supported-tier activation gate.
 
 The supported-scope diagnostic matrix remains available:
 
@@ -168,23 +170,18 @@ inside the exact 22-byte limit. Run `/signprobe config` to print the generated
 select materials, forms, text, spacing, ARGB, glow, wax, cleanup, and scheduling
 behavior.
 
-ARGB color, glow, wax, filtered text, text objects, owner data, formatting
-flags, editor locking, clone, move, and atomic operations are present in the
-coverage report. Acceptance mode now has an executable bridge path for every
-server-side operation, but a path is not called when its native capability is
-false; that skip blocks qualification. Client
+Filtered text, owner data, outline/formatting flags, clone, move, and atomic
+operations are present in the supported service. Color, glow, wax, text
+objects, and editor locking remain in the diagnostic coverage report but are
+not called when their native capability is false. Client
 rendering, editor UI acknowledgement, player edits, reconnect, and restart
 persistence remain explicit manual checkpoints. Therefore an automated report
 always has `activation_eligible: false`, even when every currently supported
 server-side check passes.
 
-The inherited alpha.6 matrix result was: every supported server-side case passed;
-expected capability-gated and manual entries remained skipped or pending. It
-does not claim that advanced operations, all stage probes, or complete-control
-activation passed. Cleanup was disabled for that run, so suite-owned removal
-was not exercised.
-
-The probe registers a **partial experimental** `endstone:sign:v2` service; `complete_control` remains false. A verified complete-control bridge remains closed until all of these are simultaneously true:
+The stable plugin registers a **supported subset** of `endstone:sign:v2`;
+`supportedRelease()` is true and `completeControl()` remains false. Future
+complete-control activation still requires all of these simultaneously:
 
 1. The runtime is BDS `26.33` with Endstone `0.11.6`.
 2. The running executable SHA-256 matches a reviewed platform manifest for official package `1.26.33.1`.
@@ -201,7 +198,7 @@ manifest cannot substitute for those reports.
 
 Until then, unavailable advanced operations report `unsupported` and the verified generated manifest stays closed. The tester checks each mutation capability first and records `mutation_attempted: false` when a gate is closed.
 
-## Complete control contract
+## Future complete-control contract
 
 The API contract includes:
 
@@ -298,9 +295,9 @@ Every operation is preflighted before mutation. The reference adapter commits ag
 The native plugin publishes `LiveSignService` through Endstone's service
 manager under the exact name `endstone:sign:v2` and ABI `2`. Load that typed
 service during your plugin's enable phase and keep the returned shared pointer.
-A production consumer should require `completeControl()`; alpha.9 may register
-an experimental partial service solely so the qualification tester can inspect
-and exercise individually gated operations.
+A v0.2.0 consumer should require `supportedRelease()` and each optional
+capability it uses. Reserve `completeControl()` for a future release that has
+passed every native and client-side layer.
 
 ```cpp
 #include "endstone_sign/live_service.h"
@@ -315,7 +312,7 @@ std::shared_ptr<endstone_sign::LiveSignService> loadSignApi(
     endstone::Server &server) {
     auto signs = server.getServiceManager().load<endstone_sign::LiveSignService>(
         std::string(endstone_sign::SignServiceName));
-    if (!signs || !signs->capabilities().completeControl()) {
+    if (!signs || !signs->capabilities().supportedRelease()) {
         return {};
     }
     return signs;
@@ -342,8 +339,8 @@ bool updateSign(
     patch.expected_revision = snapshot->revision;
     patch.front.emplace();
     patch.front->line_updates[0] = "Open 24/7";
-    patch.front->argb = 0xFFFFAA00u;
-    patch.front->glowing = true;
+    patch.send_client_update = true;
+    patch.persist = true;
 
     const auto result = signs->apply(patch);
     // The caller should log/handle conflicts, cancellation, unsupported
@@ -352,14 +349,25 @@ bool updateSign(
 }
 ```
 
-Never fall back to an older service name or bypass a false capability. For a
-deliberately experimental disposable-world plugin, require the exact individual
-capabilities used by each call—for the patch above: `capture`, `read_text`,
-`write_text`, `front_and_back`, `per_line_write`, `text_color`, and `glowing`.
-That does not make the overall adapter production-ready.
+Never fall back to an older service name or bypass a false capability. The
+patch above requires `capture`, `read_text`, `write_text`, `front_and_back`,
+`per_line_write`, and `client_updates`.
+
+Complete examples are provided in
+[`examples/cpp/plugin_integration_examples.cpp`](examples/cpp/plugin_integration_examples.cpp):
+
+- refresh a chest-shop sign from item, price, and inventory stock;
+- enqueue Sign API changes to Discord and apply inbound Discord posts to a
+  configured in-game sign;
+- update a moving-message sign from an Endstone scheduler.
+
+See [`examples/cpp/README.md`](examples/cpp/README.md) for threading, service
+dependency, event-listener lifetime, revision, and capability rules. Direct
+player sign edits are not Discord events in v0.2.0 because
+`player_edit_events` is false; API-originated changes are supported.
 
 The Python package currently provides the complete typed contract and in-memory
-reference adapter for plugin logic and unit tests. Alpha.9's
+reference adapter for plugin logic and unit tests. The release's
 `_endstone_sign_live` module is a private qualification bridge bundled inside
 the tester wheel, not a stable dependency for third-party Python plugins. Do
 not import it from production plugins; a supported public Python live-service
@@ -378,7 +386,7 @@ PYTHONPATH=python python -m unittest discover -s tests/python -v
 ```
 
 For a maintainer-side Linux release build, use CPython 3.14 and run the exact
-candidate builder and artifact verifier after the portable suite:
+release builder and artifact verifier after the portable suite:
 
 ```bash
 python scripts/verify_project_metadata.py
@@ -388,20 +396,21 @@ python scripts/build_exact.py \
   --parallel 2
 python scripts/verify_release_assets.py \
   --slug endstone-sign-api \
-  --version 0.2.0-alpha.9 \
+  --version 0.2.0 \
   --bds 1.26.33 \
   --platform linux-x64 \
   --release-dir dist/release
 python tests/python/verify_test_wheel.py \
-  dist/release/endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl
+  dist/release/endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl
 ```
 
 These commands duplicate the source/package gates exercised by GitHub Actions.
-They do not replace the live certification sequence above.
+Optional complete-control diagnostics remain separate from the stable
+supported tier.
 
 The portable shared library is emitted as `libendstone_sign_api.so` for this
 Linux release. It contains the tested API, transaction engine, and in-memory
-adapter; it is not the native Endstone plugin. Tagged alpha.9 releases package
+adapter; it is not the native Endstone plugin. The tagged v0.2.0 release packages
 only the Linux x64 SDK ZIP, native `.so`, package checksum, and matching
 CPython 3.14 Linux tester wheel.
 

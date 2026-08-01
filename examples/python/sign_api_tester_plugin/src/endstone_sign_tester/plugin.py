@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0a9"
+    version = "0.2.0"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -658,7 +658,7 @@ class SignApiTesterPlugin(Plugin):
             "/signprobe run <x> <y> <z> confirm - automated 12-material x 4-form matrix"
         )
         sender.send_message(
-            "/signprobe accept <x> <y> <z> confirm - strict 31-probe alpha.9 qualification"
+            "/signprobe accept <x> <y> <z> confirm - strict 31-probe complete-control diagnostic"
         )
         sender.send_message(
             "/signprobe runstatus; /signprobe cancel; /signprobe cleanup confirm; "
@@ -2105,13 +2105,16 @@ class SignApiTesterPlugin(Plugin):
                 response=snapshot,
                 reason="identifier, kind, canonical requested states, and revision read back",
             )
-            if snapshot.get("actor_status") != "experimental_text_captured":
+            if snapshot.get("actor_status") not in {
+                "captured",
+                "experimental_text_captured",
+            }:
                 self._matrix_fail_case(
                     report,
                     case,
                     operation="text_actor_preflight",
                     reason=(
-                        "placed sign did not expose the exact experimental text actor; "
+                        "placed sign did not expose a usable native text actor; "
                         "text mutation was not attempted"
                     ),
                     after=snapshot,

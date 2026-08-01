@@ -738,6 +738,39 @@ bool requestsStructuralChange(const SignPatch &patch) noexcept {
            !patch.state_removals.empty();
 }
 
+SignSnapshot applyPatchToSnapshot(SignSnapshot snapshot, const SignPatch &patch) {
+    if (patch.block_identifier)
+        snapshot.block_identifier = *patch.block_identifier;
+    for (const auto &[key, value] : patch.state_updates)
+        snapshot.states.insert_or_assign(key, value);
+    for (const auto &key : patch.state_removals)
+        snapshot.states.erase(key);
+    if (patch.front)
+        snapshot.front = applyTextPatch(snapshot.front, *patch.front);
+    if (patch.back)
+        snapshot.back = applyTextPatch(snapshot.back, *patch.back);
+    if (patch.waxed)
+        snapshot.waxed = *patch.waxed;
+    if (patch.locked_for_editing_by)
+        snapshot.locked_for_editing_by = *patch.locked_for_editing_by;
+    if (patch.locked_for_editing_xuid) {
+        if (patch.locked_for_editing_xuid->empty())
+            snapshot.locked_for_editing_xuid.reset();
+        else
+            snapshot.locked_for_editing_xuid = *patch.locked_for_editing_xuid;
+    }
+    if (patch.remote_profanity_filter_enabled)
+        snapshot.remote_profanity_filter_enabled =
+            *patch.remote_profanity_filter_enabled;
+    if (patch.local_profanity_filter_enabled)
+        snapshot.local_profanity_filter_enabled =
+            *patch.local_profanity_filter_enabled;
+    snapshot.kind = classifySign(snapshot.block_identifier, snapshot.states);
+    snapshot.canonical_snbt.clear();
+    snapshot.revision = calculateSignRevision(snapshot);
+    return snapshot;
+}
+
 struct PublicBlockAccess {
     endstone::Dimension *dimension{};
     std::unique_ptr<endstone::Block> block;
@@ -1698,6 +1731,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 0,
             };
         }
+#endif
         if (const auto error = validateSignBlockStates(request.block_identifier, request.states)) {
             return {SignApplyStatus::InvalidPatch, *error, 0};
         }
@@ -2001,7 +2035,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 false,
             };
         }
-#endif
         struct TransactionLedger {
             SignOperation operation;
             std::optional<SignSnapshot> before;
@@ -2230,7 +2263,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
-        const auto native_actor =
+        auto native_actor =
             locateNativeSignActor(server_, request.location, &text_bridge_);
         if (!native_actor.access) {
             return {

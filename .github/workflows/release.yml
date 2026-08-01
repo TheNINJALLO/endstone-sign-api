@@ -98,9 +98,6 @@ jobs:
           - os: ubuntu-22.04
             platform: linux-x64
             bds: "1.26.33"
-          - os: windows-2022
-            platform: windows-x64
-            bds: "1.26.33"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -135,28 +132,7 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-18 100 || true
           echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
 
-      - name: Locate Windows toolchains
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          git config --global core.longpaths true
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) { throw "vswhere.exe was not found at $vswhere" }
-          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $vs) { throw "Visual Studio 2022 C++ tools were not found" }
-          "VS_PATH=$vs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $llvm = "C:\Program Files\LLVM\bin"
-          if (-not (Test-Path (Join-Path $llvm "clang-cl.exe"))) {
-            choco install llvm -y --no-progress
-          }
-          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
-            choco install ninja -y --no-progress
-          }
-          $llvm | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-
       - name: Build Linux candidate and test wheel
-        if: runner.os == 'Linux'
         shell: bash
         run: >-
           python scripts/build_exact.py
@@ -164,13 +140,31 @@ jobs:
           --platform "${{ matrix.platform }}"
           --parallel 2
 
-      - name: Build Windows candidate and test wheel
-        if: runner.os == 'Windows'
-        shell: cmd
+      - name: Publish exact-build failure summary
+        if: failure()
+        shell: pwsh
         run: |
-          call "%VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
-          python scripts\build_exact.py --bds "${{ matrix.bds }}" --platform "${{ matrix.platform }}" --parallel 2
+          $log = Get-ChildItem dist/diagnostics -Filter exact-build.log -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $log) {
+            Write-Host "::error title=Exact native build failed::No exact-build.log was produced."
+            exit 0
+          }
+          $diagnostics = @(Get-Content $log.FullName | Where-Object {
+            $_ -match '(?i)(fatal error:|\berror:|\berror C[0-9]+:)'
+          } | Select-Object -Last 20)
+          if ($diagnostics.Count -eq 0) {
+            Write-Host "::error title=Exact native build failed::The build failed without a compiler diagnostic line."
+            exit 0
+          }
+          $message = $diagnostics -join "`n"
+          if ($env:GITHUB_WORKSPACE) {
+            $message = $message.Replace($env:GITHUB_WORKSPACE, '<workspace>')
+          }
+          $message = $message -replace 'https?://\S+', '<url>'
+          $message = $message -replace '(?i)(token|password|secret)=[^\s]+', '$1=<redacted>'
+          $message = $message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+          Write-Host "::error title=Exact native build failed::$message"
 
       - name: Verify exact platform asset set
         run: >-
@@ -182,20 +176,11 @@ jobs:
           --release-dir dist/release
 
       - name: Smoke-test Linux command wheel
-        if: runner.os == 'Linux'
         shell: bash
         run: |
           wheels=(dist/release/*-cp314-cp314-linux_x86_64.whl)
           test "${#wheels[@]}" -eq 1
           python tests/python/verify_test_wheel.py "${wheels[0]}"
-
-      - name: Smoke-test Windows command wheel
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $wheels = @(Get-ChildItem dist/release -Filter "*-cp314-cp314-win_amd64.whl")
-          if ($wheels.Count -ne 1) { throw "Expected one Windows test wheel; found $($wheels.Count)" }
-          python tests/python/verify_test_wheel.py "$($wheels[0].FullName)"
 
       - uses: actions/upload-artifact@v7
         with:
@@ -231,13 +216,13 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.14"
-      - name: Download both exact platform packages
+      - name: Download the exact Linux package
         uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.PROJECT_SLUG }}-probe-candidate-*
           path: release-assets
           merge-multiple: true
-      - name: Verify complete eight-file candidate set
+      - name: Verify complete four-file Linux candidate set
         run: >-
           python scripts/verify_combined_release_assets.py
           --slug "${{ env.PROJECT_SLUG }}"
@@ -248,11 +233,11 @@ jobs:
         working-directory: release-assets
         shell: bash
         run: |
-          find . -maxdepth 1 -type f \( -name '*.dll' -o -name '*.so' -o -name '*.zip' -o -name '*.whl' -o -name '*.sha256' \) -print0 \
+          find . -maxdepth 1 -type f \( -name '*.so' -o -name '*.zip' -o -name '*.whl' -o -name '*.sha256' \) -print0 \
             | sort -z \
             | xargs -0 -r sha256sum > SHA256SUMS.txt
           test -s SHA256SUMS.txt
-          test "$(wc -l < SHA256SUMS.txt)" -eq 8
+          test "$(wc -l < SHA256SUMS.txt)" -eq 4
       - name: Create or update the probe-candidate prerelease
         env:
           GH_TOKEN: ${{ github.token }}
@@ -260,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Alpha.9 is the full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33. It exposes the exact-binary-gated replacement, clone, move, and multi-operation rollback paths so one /signprobe accept <x> <y> <z> confirm session can exercise every implemented structural layer alongside the immutable 48-case and 31-probe matrix. Transaction rollback restores captured signs in reverse order and independently verifies cleanup of newly placed signs. A qualification passes only with 48/48 cases, 31/31 evidence-backed probes, every pre-stage native capability, zero failed or skipped steps, matching stage/matrix binary identity, and conflict-free ownership cleanup. Exact-binary, native fingerprint/ABI, revision, readback, rollback, and ownership gates remain enforced. Verified complete control, remaining advanced SignBlockActor fields, player interception, client acknowledgement, reconnect/restart evidence, and Windows live mutation remain closed until independently proven. This is a downloadable prerelease candidate, not a production plugin. Restore a backup and use only a disposable world.'
+          notes='Alpha.9 is the Linux x64 full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33. It exposes the exact-binary-gated native sign lifecycle so one /signprobe accept <x> <y> <z> confirm session can exercise all implemented layers alongside the immutable 48-case and 31-probe matrix. A qualification passes only with 48/48 cases, 31/31 evidence-backed probes, every pre-stage native capability, zero failed or skipped steps, matching stage/matrix binary identity, and conflict-free ownership cleanup. Exact-binary, native fingerprint/ABI, revision, readback, rollback, and ownership gates remain enforced. This release publishes only the Linux x64 .so, Linux SDK package, package checksum, and CPython 3.14 Linux tester wheel. Client acknowledgement and reconnect/restart evidence remain live qualification requirements. Restore a backup and use only a disposable world.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"

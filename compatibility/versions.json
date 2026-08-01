@@ -17,7 +17,7 @@
       "complete_control": false,
       "activation_requirements": [
         "exact executable SHA-256",
-        "all required SignBlockActor symbols on Windows and Linux",
+        "all required SignBlockActor symbols on Linux x64",
         "verified function signatures and class ABI",
         "player edit interception",
         "client update verification",

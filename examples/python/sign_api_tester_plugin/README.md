@@ -11,16 +11,16 @@ sign blocks and may remove only cells recorded as runner-owned.
 
 ## Alpha.9 full-system qualification
 
-The standalone native download is already named
-`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.9
-tester wheel directly in the server's `plugins/` directory. The tester also
+The Linux-only standalone native download is named
+`endstone_sign_bds_1_26_33.so`; place it and the matching alpha.9 Linux tester
+wheel directly in the server's `plugins/` directory. The tester also
 recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
 working directory.
 
 Verify the downloaded release before installation. `SHA256SUMS.txt` covers all
-eight candidate assets; the platform manifest covers the native library, ZIP,
-and matching tester wheel:
+four Linux candidate assets; the platform manifest covers the native library,
+ZIP, and matching tester wheel:
 
 ```bash
 gh release download v0.2.0-alpha.9 \
@@ -147,13 +147,9 @@ python tools/validate_full_system_acceptance.py \
   --world-backup post-cleanup-world-backup.zip
 ```
 
-On Windows, pass the exact `bedrock_server.exe` and the Windows `.dll` and
-tester wheel paths instead.
-
-The final command must print `full-system acceptance VALID`. For a Linux-first
-release, that result qualifies only Linux and Windows must stay explicitly
-diagnostic/unsupported. Claiming Windows live support requires an independent
-Windows run with its exact executable, `.dll`, and `win_amd64` wheel. The
+The final command must print `full-system acceptance VALID`. This result
+qualifies only the exact Linux artifacts supplied to the validator; alpha.9
+does not publish or claim support for a Windows native DLL or tester wheel. The
 validator rejects anything short of 48/48 cases, 31/31 probes, all required
 capabilities, zero failed/skipped/manual coverage, exact identity agreement,
 and conflict-free cleanup.
@@ -179,21 +175,12 @@ the support still matches the configured block.
 ## Capability boundaries
 
 On the exact Linux server, status must show adapter
-`bds-1.26.33.1-experimental-linux-plain-text`, with `exact_build_match`,
-`exact_binary_hash_match`, `capture`, `client_updates`, `place`, `read_text`,
-`write_text`, `front_and_back`, and `per_line_write` true before the matrix can
-start. A captured actor must report `experimental_text_captured` before text
-mutation.
-
-ARGB color, glow, wax, filtered text, text objects, owner XUID, hide-outline,
-formatting flags, profanity state, and editor locks remain behind the
-unverified SignBlockActor NBT boundary. The runner records them as unsupported
-with `mutation_attempted=false` when their individual capability is closed.
-Clone, move, and multi-operation atomic transactions are likewise not assumed.
-
-The Windows candidate cannot pass the new exact executable-hash structural
-gate and has no text bridge. It remains useful for build/packaging diagnostics,
-not live mutation.
+`bds-1.26.33.1-linux-release`, with every pre-stage native capability true
+before acceptance can start. The candidate covers both-side text, filtered
+text and TextObjects, owner XUID, color/glow/outline/formatting fields, wax,
+editor locking, profanity state, placement/removal/replacement/clone/move,
+atomic transactions, client updates, and API/player edit events. Any closed
+capability is a release blocker rather than a skipped test.
 
 Client refresh, editor UI acknowledgement, player edit interception,
 reconnect, and restart persistence cannot be proven by one uninterrupted

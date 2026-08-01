@@ -240,7 +240,7 @@ class SignReleaseToolTests(unittest.TestCase):
             self.assertNotEqual(wrong_name.returncode, 0)
             self.assertIn("does not match exact build", wrong_name.stdout)
 
-    def test_combined_verifier_requires_exact_eight_file_set(self) -> None:
+    def test_combined_verifier_requires_exact_four_file_linux_set(self) -> None:
         scratch = ROOT / "build" / "sign-release-tool-tests"
         scratch.mkdir(parents=True, exist_ok=True)
         with tempfile.TemporaryDirectory(dir=scratch) as temporary:
@@ -250,11 +250,7 @@ class SignReleaseToolTests(unittest.TestCase):
                 "endstone_sign_bds_1_26_33.so",
                 f"{stem}-linux-x64.zip",
                 f"{stem}-linux-x64.sha256",
-                "endstone_sign_bds_1_26_33.dll",
-                f"{stem}-windows-x64.zip",
-                f"{stem}-windows-x64.sha256",
                 "endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl",
-                "endstone_sign_tester-0.2.0a9-cp314-cp314-win_amd64.whl",
             }
             for name in names:
                 (release / name).write_bytes(b"x")
@@ -269,7 +265,7 @@ class SignReleaseToolTests(unittest.TestCase):
                 "--release-dir",
                 str(release),
             )
-            self.assertIn("Verified 8 release assets", passed.stdout)
+            self.assertIn("Verified 4 release assets", passed.stdout)
             (release / "extra.txt").write_text("unexpected", encoding="utf-8")
             failed = self.run_tool(
                 "verify_combined_release_assets.py",

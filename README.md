@@ -9,10 +9,10 @@ Endstone Sign API defines complete, typed control over the entire Bedrock sign l
 
 ## Current release status
 
-The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.9 ships the consolidated full-system qualification candidate around the deliberately partial native probe adapter. It exposes exact-binary-gated replacement, clone, move, and multi-operation rollback so the strict runner can exercise every implemented structural layer in one session. Its standalone native downloads use the install-ready `endstone_sign_bds_1_26_33.so`/`.dll` names; tester discovery remains compatible with the longer alpha.3 filenames.
+The **portable API, reference adapter, validation, event system, NBT projection, and transaction engine are complete and tested**. Alpha.9 is the consolidated Linux x64 full-system qualification build. It exposes the exact-binary-gated native sign lifecycle so the strict runner can exercise every implemented layer in one session. The release publishes the install-ready `endstone_sign_bds_1_26_33.so`, Linux SDK ZIP and checksum, and CPython 3.14 Linux tester wheel. No Windows native DLL or wheel is part of this release.
 
-Alpha.9 turns on only implemented structural operations, and only when the
-exact runtime and executable identity gates match. `/signprobe accept` runs the
+Alpha.9 turns on the implemented native operations only when the exact runtime,
+executable, symbol, and ABI gates match. `/signprobe accept` runs the
 complete 48-case profile, starts the exact 31-probe stage report, and makes
 every remaining closed capability, failed or skipped step, pending
 client/reconnect/restart checkpoint, identity mismatch, or cleanup conflict a
@@ -26,9 +26,9 @@ aborted at dark-oak standing placement because that release generated
 passed all 48 default material/form cases, including the corrected legacy
 dark-oak standing and wall identifiers.
 
-On Linux x64, the probe adapter exposes front/back plain-text read/write only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and all three full native function hashes, the live Sign/HangingSign vtable, and the libc++ string layout match. Every write preserves and verifies the owner, performs native readback, and attempts verified rollback on failure.
+On Linux x64, the release adapter opens only when the running `bedrock_server` is the exact official `1.26.33.1` executable (SHA-256 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`) and every required native function hash, vtable check, and ABI guard matches. The candidate implements capture and mutation of both sides, plain/filtered/TextObject content, ARGB color, glow, outline visibility, formatting persistence, owner XUID, wax, editor locks, profanity flags, placement/removal/replacement/clone/move, atomic rollback, and cancellable player-edit events. Mutations require native readback and attempt verified rollback on failure.
 
-The native text boundary is intentionally limited to normal unfiltered string signs whose old text, new four-line message (including three newline separators), and owner XUID each fit the 22-byte libc++ small-string representation. It rejects text objects, filtered text, advanced properties, and every binary mismatch before text mutation. Alpha.9 can combine supported structural replacement with that guarded plain-text state and can restore it during transaction rollback. Alpha.6 additionally requires the exact executable hash inside every structural mutation, resolves all 50 support/cleanup/sign descriptors before the first world write, and enumerates Endstone's pre-populated block registry before the native descriptor boundary. The Windows candidate is read-only until its independent binary and text boundaries are verified.
+Those Linux paths are implemented but remain an experimental qualification boundary until the disposable-world run below passes. Binary, symbol, representation, revision, ownership, readback, client-update, and rollback mismatches fail closed. Placement pre-resolves the complete descriptor plan before the first world write and enumerates Endstone's pre-populated registry rather than creating unknown descriptors.
 
 ## Full-release certification
 
@@ -147,14 +147,10 @@ conflict-free cleanup. The seven guided results are operator attestations, so a
 release reviewer must also inspect their notes and bound log/backup rather than
 treating non-empty text as independent client proof.
 
-For a Linux-first release, this pass qualifies only the Linux artifact and the
-Windows build must remain explicitly diagnostic/unsupported. If Windows live
-support is claimed, repeat the entire session independently with the exact
-Windows executable, `.dll`, and `win_amd64` tester wheel. The current partial
-Linux adapter and diagnostic-only Windows adapter are expected to fail the
-complete-control preflight until their remaining native boundaries and reviewed
-manifests are implemented; a previously green supported-scope matrix is not the
-same result as this strict acceptance run.
+This release is Linux x64 only. A valid result qualifies the exact Linux `.so`,
+SDK package, and tester wheel used by that run; it makes no Windows support
+claim. Source compilation and a previously green supported-scope matrix are not
+substitutes for this strict live acceptance result.
 
 The supported-scope diagnostic matrix remains available:
 
@@ -403,10 +399,11 @@ python tests/python/verify_test_wheel.py \
 These commands duplicate the source/package gates exercised by GitHub Actions.
 They do not replace the live certification sequence above.
 
-The portable shared library is emitted as `endstone_sign_api.dll` on Windows
-and `libendstone_sign_api.so` on Linux. It contains the tested API, transaction
-engine, and in-memory adapter; it is not the native Endstone plugin. Tagged
-GitHub releases package both platform SDK ZIPs, native plugins, and the matching platform-specific tester wheels.
+The portable shared library is emitted as `libendstone_sign_api.so` for this
+Linux release. It contains the tested API, transaction engine, and in-memory
+adapter; it is not the native Endstone plugin. Tagged alpha.9 releases package
+only the Linux x64 SDK ZIP, native `.so`, package checksum, and matching
+CPython 3.14 Linux tester wheel.
 
 ## Exact native activation
 

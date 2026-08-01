@@ -106,6 +106,11 @@ def validate_source_release() -> None:
         )
     if "v0.11.6" not in SOURCE_RELEASE.get("endstone_tags", []):
         raise SystemExit("SOURCE_RELEASE.json must pin Endstone v0.11.6")
+    if SUPPORTED_PLATFORMS != {"linux-x64"}:
+        raise SystemExit(
+            "SOURCE_RELEASE.json must declare this release as Linux x64 only; "
+            f"derived {sorted(SUPPORTED_PLATFORMS)}"
+        )
 
 
 def validate_manifest(platform: str) -> Path:
@@ -199,11 +204,6 @@ def main() -> int:
         lld = require(
             "ld.lld",
             ("/usr/lib/llvm-18/bin/ld.lld", "/usr/bin/ld.lld-18"),
-        )
-    if SUPPORTED_PLATFORMS != {"linux-x64"}:
-        raise SystemExit(
-            "SOURCE_RELEASE.json must declare this release as Linux x64 only; "
-            f"derived {sorted(SUPPORTED_PLATFORMS)}"
         )
         env["CC"] = clang
         env["CXX"] = clangxx

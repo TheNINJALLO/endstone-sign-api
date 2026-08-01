@@ -34,7 +34,7 @@ AUTOMATION_SPEC.loader.exec_module(AUTOMATION)
 
 BDS_PACKAGE = "1.26.33.1"
 ENDSTONE_VERSION = "0.11.6"
-TESTER_VERSION = "0.2.0"
+TESTER_VERSION = "0.2.1a1"
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MATERIALS = set(AUTOMATION.MATERIALS)
 KINDS = set(AUTOMATION.KINDS)
@@ -48,8 +48,8 @@ EXPECTED_SERVER_SHA256 = {
     "windows-x64": "4a0b867eee6c24310f405410b17e9794441b81ed8f2976cdd4cef54d0c441829",
 }
 EXPECTED_TESTER_WHEEL = {
-    "linux-x64": "endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl",
-    "windows-x64": "endstone_sign_tester-0.2.0-cp314-cp314-win_amd64.whl",
+    "linux-x64": "endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl",
+    "windows-x64": "endstone_sign_tester-0.2.1a1-cp314-cp314-win_amd64.whl",
 }
 
 CASE_OPERATION_ORDER = (
@@ -571,7 +571,10 @@ def _validate_run_evidence(
 
     extended = {
         "capture_filtered_text": ("filtered_message", "a7-filter"),
-        "capture_text_object": ("text_object", '{"text":"a7"}'),
+        "capture_text_object": (
+            "text_object",
+            '{"rawtext":[{"text":"a7"}]}',
+        ),
         "capture_owner_xuid": ("owner_xuid", "a7-owner"),
         "capture_hide_glow_outline": ("hide_glow_outline", None),
         "capture_persist_formatting": ("persist_formatting", None),
@@ -639,14 +642,14 @@ def _validate_run_evidence(
             lock_before, source_case, revision=current_revision
         )
         or lock_request.get("locked_for_editing_by") != 2147483007
-        or lock_request.get("xuid") != "a7-lock"
+        or lock_request.get("xuid") is not None
         or not lock_ok
         or lock_revision == current_revision
         or not _snapshot_matches_case(
             lock_capture, source_case, revision=lock_revision
         )
         or lock_capture.get("locked_for_editing_by") != 2147483007
-        or lock_capture.get("locked_for_editing_xuid") != "a7-lock"
+        or lock_capture.get("locked_for_editing_xuid") is not None
         or lock.get("after") != lock_capture
         or restore_state.get("snapshot") != lock_before
         or restore_state.get("locked_for_editing_by")

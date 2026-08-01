@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.1-alpha.1
+
+- Removed the stable-build capability overrides and mutation rejections so the
+  exact Linux artifact exposes text objects, ARGB color, glow, wax, editor
+  lock/open, player-edit interception, and restart-persistence coverage in the
+  same strict acceptance run.
+- Corrected TextObject input to Bedrock's `rawtext` schema and replaced the
+  rendered-message cache read with the exact native TextObject JSON serializer,
+  guarded by its executable range and full SHA-256 fingerprint.
+- Corrected editor-lock qualification to verify the native runtime ID and only
+  derive an XUID when that ID belongs to an online player.
+- Re-enabled player-edit hook installation in supported Linux builds while
+  retaining exact executable, function, ABI, revision, readback, rollback, and
+  stage-evidence gates.
+- Versioned the plugin and CPython 3.14 tester as a distinct Linux-only
+  qualification candidate so it cannot be confused with stable v0.2.0.
+
 ## 0.2.0
 
 - Published the first supported Linux x64 `endstone:sign:v2` ABI 2 service for

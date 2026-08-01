@@ -100,7 +100,7 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             bindings,
         )
 
-    def test_stable_linux_mode_excludes_failed_advanced_capabilities(self) -> None:
+    def test_supported_linux_mode_exposes_full_native_candidate(self) -> None:
         cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
         adapter = ADAPTER_SOURCE.read_text(encoding="utf-8")
         plugin = (ROOT / "src" / "plugin.cpp").read_text(encoding="utf-8")
@@ -124,18 +124,30 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             "waxed",
             "editor_lock",
             "open_editor",
-            "player_edit_events",
             "restart_persistence",
         ):
-            self.assertIn(f"result.{field} = false;", adapter)
+            self.assertIn(f"result.{field} = complete_native_gate", adapter)
         self.assertIn(
-            "v0.2.0 does not support text objects, color, glow, wax, or editor locks",
+            "result.player_edit_events = complete_native_gate && hook_installed_",
             adapter,
         )
+        self.assertNotIn("v0.2.0 does not support", adapter)
+        self.assertNotIn("!ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE", adapter)
+        self.assertIn("installPlayerEditHook();", adapter)
+        self.assertIn("TextObjectJsonRva = 0x09DD50D0", adapter)
+        self.assertIn("TextObjectJsonSha256", adapter)
+        self.assertIn('parsed.find("rawtext")', adapter)
         self.assertIn(
-            "ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && "
-            "!ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE",
-            adapter,
+            "'{\"rawtext\":[{\"text\":\"a7\"}]}'",
+            (
+                ROOT
+                / "examples"
+                / "python"
+                / "sign_api_tester_plugin"
+                / "src"
+                / "endstone_sign_tester"
+                / "plugin.py"
+            ).read_text(encoding="utf-8"),
         )
         self.assertIn("caps.supportedRelease()", plugin)
 

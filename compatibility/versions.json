@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.0",
+  "api": "0.2.1-alpha.1",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -10,7 +10,7 @@
       "runtime_bds": "26.33",
       "official_package": "1.26.33.1",
       "endstone": "0.11.6",
-      "status": "stable-linux-supported-subset",
+      "status": "linux-full-system-qualification-candidate",
       "portable_contract": "complete",
       "native_service_registration": true,
       "supported_native_service_registration": true,
@@ -26,22 +26,22 @@
         "atomic_transactions",
         "front_and_back_text",
         "per_line_write",
+        "text_objects",
         "filtered_text",
         "owner_xuid",
-        "hide_glow_outline",
-        "persist_formatting",
-        "api_edit_events",
-        "client_updates"
-      ],
-      "known_unavailable_capabilities": [
-        "text_objects",
         "text_color",
         "glowing",
+        "hide_glow_outline",
+        "persist_formatting",
         "waxed",
         "editor_lock",
         "open_editor",
         "player_edit_events",
-        "restart_persistence",
+        "api_edit_events",
+        "client_updates",
+        "restart_persistence"
+      ],
+      "known_unavailable_capabilities": [
         "complete_control"
       ],
       "runtime_requirements": [
@@ -52,5 +52,5 @@
       ]
     }
   ],
-  "policy": "v0.2.0 consumers require supportedRelease() and every optional capability they use; completeControl() remains false"
+  "policy": "v0.2.1-alpha.1 exposes every exact-Linux native capability so one strict full-system run can qualify them together; completeControl() remains false until stage evidence is activated"
 }

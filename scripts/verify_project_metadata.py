@@ -45,7 +45,7 @@ acceptance_validator = text("tools/validate_full_system_acceptance.py")
 
 release = source.get("version")
 expect(source.get("name") == "endstone-sign-api", "SOURCE_RELEASE name")
-expect(release == "0.2.0", "SOURCE_RELEASE version")
+expect(release == "0.2.1-alpha.1", "SOURCE_RELEASE version")
 expect(source.get("service") == "endstone:sign:v2", "SOURCE_RELEASE service")
 expect(source.get("service_abi") == 2, "SOURCE_RELEASE service ABI")
 expect(source.get("official_bds_packages") == ["1.26.33.1"], "exact official BDS package")
@@ -53,14 +53,14 @@ expect(source.get("runtime_bds") == ["1.26.33", "26.33"], "exact runtime BDS val
 expect(source.get("endstone_tags") == ["v0.11.6"], "exact Endstone tag")
 
 match = re.search(r"project\(endstone_sign VERSION ([0-9.]+)", cmake)
-expect(bool(match) and match.group(1) == "0.2.0", "CMake project version")
+expect(bool(match) and match.group(1) == "0.2.1", "CMake project version")
 expect('set(ENDSTONE_BDS_BUILD "1.26.33"' in cmake, "CMake BDS runtime target")
 expect('set(ENDSTONE_BDS_PACKAGE "1.26.33.1"' in cmake, "CMake BDS package target")
 expect('GIT_TAG v0.11.6' in cmake, "CMake Endstone tag")
-expect('version = "0.2.0"' in pyproject, "Python project version")
-expect('__version__ = "0.2.0"' in init, "Python package version")
-expect('version = "0.2.0"' in tester_pyproject, "tester wheel version")
-expect('version = "0.2.0"' in tester_plugin, "tester plugin version")
+expect('version = "0.2.1a1"' in pyproject, "Python project version")
+expect('__version__ = "0.2.1a1"' in init, "Python package version")
+expect('version = "0.2.1a1"' in tester_pyproject, "tester wheel version")
+expect('version = "0.2.1a1"' in tester_plugin, "tester plugin version")
 expect('module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION' in live_bindings,
        "live bridge build-derived version")
 expect('out["supported_release"] = caps.supportedRelease()' in live_bindings,
@@ -107,10 +107,10 @@ expect('REQUIRED_CAPABILITIES' in acceptance_validator and
        "strict full-system acceptance validator")
 expect('__service_name__ = "endstone:sign:v2"' in init, "Python service name")
 expect('__service_abi__ = 2' in init, "Python service ABI")
-expect('ReleaseVersion = "0.2.0"' in version_header, "C++ release version")
+expect('ReleaseVersion = "0.2.1-alpha.1"' in version_header, "C++ release version")
 expect('ServiceName = "endstone:sign:v2"' in version_header, "C++ service name")
 expect('ServiceAbiVersion = 2' in version_header, "C++ service ABI")
-expect("**Release:** `v0.2.0`" in readme, "README release tag")
+expect("**Candidate:** `v0.2.1-alpha.1`" in readme, "README candidate tag")
 expect("supportedRelease()" in readme, "README supported native service contract")
 expect("plugin_integration_examples.cpp" in readme,
        "README plugin integration examples")
@@ -204,7 +204,7 @@ for platform, expected_hash in expected_hashes.items():
         expect("matrix_report_sha256" in stage_probe,
                f"{platform} activation matrix hash gate")
 
-expect('EXPECTED_TESTER_VERSION = "0.2.0"' in
+expect('EXPECTED_TESTER_VERSION = "0.2.1a1"' in
        text("tools/verify_native_manifest.py"),
        "native manifest verifier tester version")
 
@@ -219,14 +219,14 @@ for required in (
 ):
     expect(required in workflow, f"workflow contains {required}")
 expect("symbol-gate-pending" not in workflow, "workflow has no stale prototype gate")
-expect("RELEASE_VERSION: 0.2.0" in workflow, "CI release version")
-expect("RELEASE_VERSION: 0.2.0" in release_workflow,
+expect("RELEASE_VERSION: 0.2.1-alpha.1" in workflow, "CI release version")
+expect("RELEASE_VERSION: 0.2.1-alpha.1" in release_workflow,
        "tag workflow release version")
 expect("ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=ON" in text("scripts/build_exact.py"),
        "exact builder supported release mode")
-expect("--prerelease=false --latest" in release_workflow and
+expect("--prerelease --latest=false" in release_workflow and
        '--title "Endstone Sign API $RELEASE_TAG"' in release_workflow,
-       "tag workflow publishes a stable latest release")
+       "candidate tag workflow publishes a non-latest prerelease")
 expect("python scripts/verify_bds_sign_identifiers.py --platform linux-x64"
        in release_workflow, "tag workflow identifier inventory verification")
 expect("python tools/verify_native_symbol_candidates.py" in release_workflow,

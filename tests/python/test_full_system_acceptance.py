@@ -281,7 +281,11 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
         current = source
         extended = (
             ("capture_filtered_text", "filtered_message", "a7-filter"),
-            ("capture_text_object", "text_object", '{"text":"a7"}'),
+            (
+                "capture_text_object",
+                "text_object",
+                '{"rawtext":[{"text":"a7"}]}',
+            ),
             ("capture_owner_xuid", "owner_xuid", "a7-owner"),
             ("capture_hide_glow_outline", "hide_glow_outline", None),
             ("capture_persist_formatting", "persist_formatting", None),
@@ -332,7 +336,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             {
                 "revision": revision,
                 "locked_for_editing_by": 2147483007,
-                "locked_for_editing_xuid": "a7-lock",
+                "locked_for_editing_xuid": None,
             }
         )
         restore_state = {
@@ -350,7 +354,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             request={
                 "target": {"dimension": source_case["dimension"], **source_case["sign"]},
                 "locked_for_editing_by": 2147483007,
-                "xuid": "a7-lock",
+                "xuid": None,
             },
             response={"apply": self.applied(revision), "capture": lock_capture},
             before=lock_before,
@@ -592,7 +596,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             name: True for name in automation.REQUIRED_QUALIFICATION_CAPABILITIES
         }
         matrix = automation.new_run_report(
-            plugin_version="0.2.0",
+            plugin_version="0.2.1a1",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -685,7 +689,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
         stage["log_sha256"] = hashlib.sha256(self.LOG_PAYLOAD).hexdigest()
         stage["world_backup_sha256"] = hashlib.sha256(self.BACKUP_PAYLOAD).hexdigest()
         stage["world_seed"] = "12345"
-        stage["tester_version"] = "0.2.0"
+        stage["tester_version"] = "0.2.1a1"
         stage["matrix_run_id"] = matrix["run_id"]
         stage["matrix_config_sha256"] = matrix["config_sha256"]
         stage["world_name"] = matrix["world_name"]
@@ -718,7 +722,7 @@ class FullSystemAcceptanceValidatorTests(unittest.TestCase):
             plugin_path = folder / "plugin.so"
             tester_wheel_path = (
                 folder
-                / "endstone_sign_tester-0.2.0-cp314-cp314-linux_x86_64.whl"
+                / "endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl"
             )
             log_path = folder / "server.log"
             backup_path = folder / "world-backup.zip"

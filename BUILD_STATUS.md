@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0**
+Version: **0.2.1-alpha.1**
 
 ## Portable core
 
@@ -29,15 +29,12 @@ Version: **0.2.0**
   full-hash, and unique-entry-fingerprint audit; it remains non-activating static
   evidence only.
 - Full Linux bridge source: implemented behind exact runtime and ABI guards.
-- Stable supported service registration: enabled when
+- Candidate supported service registration: enabled when
   `SignCapabilities::supportedRelease()` passes.
-- Optional complete-control stage probe: not passed.
+- Complete-control stage probe: pending the one final Linux acceptance run.
 - Linux structural mutation: executable-hash gated; blank placement,
-  structural capture, replacement, clone, move, no-drop removal, UI-only
-  and multi-operation rollback are exposed by v0.2.0. Editor dispatch remains
-  unavailable. The supported placement/text workflow passed the hosted
-  48-case alpha.6 matrix, while the latest run validated replacement, clone,
-  move, API cancellation, and atomic rollback.
+  structural capture, replacement, clone, move, no-drop removal, editor
+  dispatch, and multi-operation rollback are exposed together.
 - Canonical sign identifier inventory: all 36 IDs are pinned to both exact
   executable identities; the exact Linux binary scan passed 36/36.
 - Descriptor safety: the tester resolves its support, cleanup air, and all 48
@@ -69,23 +66,24 @@ Version: **0.2.0**
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
   within the 22-byte boundary across the hosted matrix; client rendering is not
   inferred.
-- Stable advanced fields: filtered text, owner XUID, hidden-outline and
-  formatting flags passed live mutation/readback/restore. Text objects, color,
-  glow, wax, editor locking/opening, player edit interception, and restart
-  persistence are explicitly unavailable in v0.2.0.
+- Full candidate fields: filtered text, owner XUID, hidden-outline and
+  formatting flags already passed live mutation/readback/restore. TextObject
+  now uses the exact native JSON serializer and Bedrock `rawtext` schema;
+  color, glow, wax, editor locking/opening, player edit interception, and
+  restart persistence are ungated for the final combined run.
 - Standalone native assets: published under the canonical install-ready
   `endstone_sign_bds_1_26_33` filename; tester discovery also recognizes the
   legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
 Use normal backup practices for production servers and test plugin integrations
-before deployment. The stable service fails closed on runtime identity or
-capability mismatch; `/signprobe accept` remains a disposable-world diagnostic
-for future complete-control work.
+before deployment. The candidate fails closed on runtime identity or
+capability mismatch; `/signprobe accept` is the disposable-world release gate.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
 `dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
 48 default cases, including the corrected legacy dark-oak standing and wall
 identifiers. Expected unsupported advanced and manual checks remained
 skipped/pending, so stage-probe and complete-control activation remain closed.
-Version 0.2.0 releases the supported Linux text/structure tier while leaving
-unavailable native layers closed. It does not claim complete control.
+Version 0.2.1-alpha.1 exposes all exact-Linux layers for one strict acceptance
+run. It does not claim complete control until the report, log, and world backup
+pass validation and the evidence gate is reviewed.

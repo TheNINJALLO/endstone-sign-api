@@ -51,8 +51,8 @@ public:
 
         if (supported_release) {
             getLogger().info(
-                "Registering the supported Linux v0.2.0 sign text/structure service; "
-                "callers must check capabilities for optional advanced fields");
+                "Registering the exact Linux sign service with all native capability "
+                "layers available for full-system qualification");
         } else if (!caps.completeControl()) {
             getLogger().warning(
                 "EXPERIMENTAL TEST BUILD: registering endstone:sign:v2 before native "
@@ -98,7 +98,7 @@ private:
 
 ENDSTONE_PLUGIN("sign_api", ENDSTONE_SIGN_VERSION, SignApiPlugin) {
     prefix = "SignAPI";
-    description = "Exact-build Linux sign text and structure API for Endstone";
+    description = "Exact-build Linux full-control sign API for Endstone";
     website = "https://github.com/TheNINJALLO/endstone-sign-api";
     authors = {"Ninj-OS contributors"};
 }

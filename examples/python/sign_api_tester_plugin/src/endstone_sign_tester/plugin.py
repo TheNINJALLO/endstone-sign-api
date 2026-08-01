@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.0"
+    version = "0.2.1a1"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -2661,10 +2661,10 @@ class SignApiTesterPlugin(Plugin):
                 "filtered_message": str(front_before.get("filtered_message") or "")
             }
         elif operation == "capture_text_object":
-            values["text_object"] = '{"text":"a7"}'
+            values["text_object"] = '{"rawtext":[{"text":"a7"}]}'
             values["message_is_text_object"] = True
             expected_fields = {
-                "text_object": '{"text":"a7"}',
+                "text_object": '{"rawtext":[{"text":"a7"}]}',
                 "message_is_text_object": True,
             }
             restore_fields = {
@@ -2802,7 +2802,7 @@ class SignApiTesterPlugin(Plugin):
                     sign["y"],
                     sign["z"],
                     2147483007,
-                    "a7-lock",
+                    "",
                     False,
                     expected_revision,
                 )
@@ -2815,7 +2815,7 @@ class SignApiTesterPlugin(Plugin):
             response.get("ok") is True
             and int(response.get("revision") or 0) == after_revision
             and after.get("locked_for_editing_by") == 2147483007
-            and after.get("locked_for_editing_xuid") == "a7-lock"
+            and after.get("locked_for_editing_xuid") is None
         )
         if passed:
             case["expected_revision"] = after_revision
@@ -2835,7 +2835,7 @@ class SignApiTesterPlugin(Plugin):
             status="passed" if passed else "failed",
             required_capabilities=required,
             mutation_attempted=True,
-            request={"locked_for_editing_by": 2147483007, "xuid": "a7-lock"},
+            request={"locked_for_editing_by": 2147483007, "xuid": None},
             response={"apply": response, "capture": after},
             before=before,
             after=after,
@@ -2858,7 +2858,7 @@ class SignApiTesterPlugin(Plugin):
             or not self._matrix_snapshot_matches(current, case)
             or int(current.get("revision") or 0)
             != int(case.get("expected_revision") or 0)
-            or current.get("locked_for_editing_xuid") != "a7-lock"
+            or current.get("locked_for_editing_by") != 2147483007
         ):
             add_matrix_step(
                 report,

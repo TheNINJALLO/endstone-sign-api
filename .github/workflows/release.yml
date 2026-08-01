@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.0
+  RELEASE_VERSION: 0.2.1-alpha.1
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -238,17 +238,17 @@ jobs:
             | xargs -0 -r sha256sum > SHA256SUMS.txt
           test -s SHA256SUMS.txt
           test "$(wc -l < SHA256SUMS.txt)" -eq 4
-      - name: Create or update the stable Linux release
+      - name: Create or update the Linux qualification prerelease
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Endstone Sign API v0.2.0 is the first supported Linux x64 release for Endstone 0.11.6 / exact BDS 1.26.33.1. It publishes the endstone:sign:v2 C++ service ABI 2 for sign capture, placement, removal, front/back text, per-line updates, filtered text, owner XUID, outline/formatting flags, API change events, replacement, clone, move, and atomic transactions. Every mutation remains exact-binary, primary-thread, capability, revision, readback, and rollback gated. Known unavailable v0.2.0 capabilities are text objects, color, glow, wax, editor locking/opening, player edit interception, restart-persistence certification, and completeControl(). Consumers must require supportedRelease() and each optional capability they use. This release contains only the Linux x64 .so, Linux SDK package, checksum, and CPython 3.14 diagnostic wheel.'
+          notes='Endstone Sign API v0.2.1-alpha.1 is the exact-Linux full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33.1. It enables every native capability together, repairs Bedrock rawtext JSON serialization, corrects editor-lock verification, and installs player-edit interception in the supported build. Use only in a backed-up disposable test world and run /signprobe accept once; completeControl() remains evidence-gated until that run passes.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
-            gh release edit "$RELEASE_TAG" --prerelease=false --latest --notes "$notes"
+            gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"
           else
             if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
               tag_args=(--verify-tag)
@@ -256,7 +256,7 @@ jobs:
               tag_args=(--target "$GITHUB_SHA")
             fi
             gh release create "$RELEASE_TAG" release-assets/* \
-              "${tag_args[@]}" --latest \
+              "${tag_args[@]}" --prerelease --latest=false \
               --title "Endstone Sign API $RELEASE_TAG" \
               --notes "$notes"
           fi

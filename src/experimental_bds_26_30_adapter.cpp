@@ -14,10 +14,12 @@
 #include "bedrock/world/level/block/actor/block_actor.h"
 #include "bedrock/world/level/block/actor/vanilla_block_actor.h"
 #include "bedrock/world/level/block_source.h"
+#include "bedrock/deps/json/value.h"
 #include "bedrock/nbt/compound_tag.h"
 #include "endstone/block/block_type.h"
 #include "endstone/core/level/dimension.h"
 #include "endstone/core/player.h"
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -205,8 +207,7 @@ class ExperimentalLinuxTextBridge {
                                                "filtered sign message");
         result.message_is_text_object = !plainMessage(actor, side);
         result.text_object = result.message_is_text_object
-                                 ? nativeString(text, TextObjectStringOffset, 64 * 1024,
-                                                "sign text object")
+                                 ? serializeTextObject(text)
                                  : std::string{};
         result.argb = colorToArgb(text + TextColorOffset);
         result.glowing = byteAt(text, GlowingOffset) != 0;
@@ -219,15 +220,16 @@ class ExperimentalLinuxTextBridge {
     void applyText(BlockActor &actor, const SignSide side,
                    const SignText &value) const {
         requireCompatible(actor);
+        const auto text_value = value.message_is_text_object
+                                    ? canonicalTextObject(value.text_object)
+                                    : flattenSignLines(value.lines);
         CompoundTag tag;
         tag.putBoolean("IgnoreLighting", value.glowing);
         tag.putBoolean("HideGlowOutline", value.hide_glow_outline);
         tag.putInt("SignTextColor", static_cast<std::int32_t>(value.argb));
         tag.putBoolean("PersistFormatting", value.persist_formatting);
         tag.putString("TextOwner", value.owner_xuid);
-        tag.putString("Text", value.message_is_text_object
-                                  ? value.text_object
-                                  : flattenSignLines(value.lines));
+        tag.putString("Text", text_value);
         tag.putString("FilteredText", value.filtered_message);
         text_load_(sideText(actor, side), &tag, TextLoadModeAllData);
     }
@@ -314,6 +316,7 @@ class ExperimentalLinuxTextBridge {
         void (*)(BlockActor *, std::int32_t, std::string, std::string);
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
     using TextLoad = void (*)(void *, const CompoundTag *, std::int32_t);
+    using TextObjectJson = Json::Value (*)(const void *);
     using SetWaxed = void (*)(BlockActor *, bool);
 #endif
 
@@ -327,7 +330,7 @@ class ExperimentalLinuxTextBridge {
     static constexpr std::size_t HideGlowOutlineOffset = 0x119;
     static constexpr std::size_t PersistFormattingOffset = 0x11A;
     static constexpr std::size_t OwnerOffset = 0x120;
-    static constexpr std::size_t TextObjectStringOffset = 0x138;
+    static constexpr std::size_t TextObjectRootOffset = 0x30;
     static constexpr std::size_t WaxedOffset = 0xD8;
     static constexpr std::size_t LockOffset = 0xE0;
     static constexpr std::size_t RemoteProfanityFilterOffset = 0x190;
@@ -354,6 +357,10 @@ class ExperimentalLinuxTextBridge {
     static constexpr std::size_t TextLoadSize = 4586;
     static constexpr std::string_view TextLoadSha256 =
         "934bc7322f7beaca4d01a8073e7eef47d7e13ba243674f5ac3760d5315f7cfc7";
+    static constexpr std::uintptr_t TextObjectJsonRva = 0x09DD50D0;
+    static constexpr std::size_t TextObjectJsonSize = 122;
+    static constexpr std::string_view TextObjectJsonSha256 =
+        "9b385769e1291cf163e38eea2a0ed7f8527894af81f3201cff2889262486b58a";
     static constexpr std::uintptr_t SetWaxedRva = 0x0BE10C80;
     static constexpr std::size_t SetWaxedSize = 12;
     static constexpr std::string_view SetWaxedSha256 =
@@ -392,9 +399,11 @@ class ExperimentalLinuxTextBridge {
         bool contains_string_message = false;
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         const auto text_load_address = base + TextLoadRva;
+        const auto text_object_json_address = base + TextObjectJsonRva;
         const auto set_waxed_address = base + SetWaxedRva;
         const auto update_text_address = base + UpdateTextFromClientRva;
         bool contains_text_load = false;
+        bool contains_text_object_json = false;
         bool contains_set_waxed = false;
         bool contains_update_text = false;
 #endif
@@ -417,6 +426,10 @@ class ExperimentalLinuxTextBridge {
             contains_text_load = contains_text_load ||
                                  segmentContains(segment_begin, header.p_memsz,
                                                  text_load_address, TextLoadSize);
+            contains_text_object_json = contains_text_object_json ||
+                                        segmentContains(segment_begin, header.p_memsz,
+                                                        text_object_json_address,
+                                                        TextObjectJsonSize);
             contains_set_waxed = contains_set_waxed ||
                                  segmentContains(segment_begin, header.p_memsz,
                                                  set_waxed_address, SetWaxedSize);
@@ -428,7 +441,8 @@ class ExperimentalLinuxTextBridge {
         }
         if (!contains_set || !contains_get || !contains_string_message
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
-            || !contains_text_load || !contains_set_waxed || !contains_update_text
+            || !contains_text_load || !contains_text_object_json ||
+               !contains_set_waxed || !contains_update_text
 #endif
         )
             return 0;
@@ -527,6 +541,8 @@ class ExperimentalLinuxTextBridge {
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
             || !functionHashMatches(*image.base + TextLoadRva, TextLoadSize,
                                     TextLoadSha256) ||
+            !functionHashMatches(*image.base + TextObjectJsonRva,
+                                 TextObjectJsonSize, TextObjectJsonSha256) ||
             !functionHashMatches(*image.base + SetWaxedRva, SetWaxedSize,
                                  SetWaxedSha256) ||
             !functionHashMatches(*image.base + UpdateTextFromClientRva,
@@ -544,6 +560,8 @@ class ExperimentalLinuxTextBridge {
             reinterpret_cast<IsStringMessage>(string_message_address);
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         text_load_ = reinterpret_cast<TextLoad>(*image.base + TextLoadRva);
+        text_object_json_ =
+            reinterpret_cast<TextObjectJson>(*image.base + TextObjectJsonRva);
         set_waxed_ = reinterpret_cast<SetWaxed>(*image.base + SetWaxedRva);
 #endif
         image_base_ = *image.base;
@@ -594,6 +612,68 @@ class ExperimentalLinuxTextBridge {
                (component(channels[0]) << 16U) |
                (component(channels[1]) << 8U) | component(channels[2]);
     }
+
+    [[nodiscard]] static nlohmann::json jsonValue(const Json::Value &value) {
+        switch (value.type()) {
+        case Json::nullValue:
+            return nullptr;
+        case Json::intValue:
+            return value.asInt64();
+        case Json::uintValue:
+            return value.asUInt64();
+        case Json::realValue:
+            return value.asDouble();
+        case Json::stringValue:
+            return value.asString();
+        case Json::booleanValue:
+            return value.asBool();
+        case Json::arrayValue: {
+            auto result = nlohmann::json::array();
+            for (Json::Value::ArrayIndex index = 0; index < value.size(); ++index)
+                result.push_back(jsonValue(value[index]));
+            return result;
+        }
+        case Json::objectValue: {
+            auto result = nlohmann::json::object();
+            for (const auto &name : value.getMemberNames())
+                result[name] = jsonValue(value[name]);
+            return result;
+        }
+        }
+        throw std::runtime_error("native text object returned an unknown JSON type");
+    }
+
+    [[nodiscard]] static std::string canonicalTextObject(
+        const std::string_view value) {
+        nlohmann::json parsed;
+        try {
+            parsed = nlohmann::json::parse(value);
+        } catch (const nlohmann::json::exception &error) {
+            throw std::invalid_argument(
+                std::string("text object is not valid JSON: ") + error.what());
+        }
+        if (!parsed.is_object()) {
+            throw std::invalid_argument(
+                "text object must contain a non-empty Bedrock rawtext array");
+        }
+        const auto rawtext = parsed.find("rawtext");
+        if (rawtext == parsed.end() ||
+            !rawtext->is_array() || rawtext->empty()) {
+            throw std::invalid_argument(
+                "text object must contain a non-empty Bedrock rawtext array");
+        }
+        return parsed.dump();
+    }
+
+    [[nodiscard]] std::string serializeTextObject(const std::byte *text) const {
+        if (!text_object_json_)
+            throw std::runtime_error("native text object serializer is unavailable");
+        const auto value = text_object_json_(text + TextObjectRootOffset);
+        const auto serialized = jsonValue(value).dump();
+        if (serialized.size() > 64 * 1024 || !isValidUtf8(serialized))
+            throw std::runtime_error("native sign text object failed validation");
+        return serialized;
+    }
 #endif
 
     [[nodiscard]] const std::byte *sideText(const BlockActor &actor,
@@ -622,6 +702,7 @@ class ExperimentalLinuxTextBridge {
     SetMessage set_message_{};
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
     TextLoad text_load_{};
+    TextObjectJson text_object_json_{};
     SetWaxed set_waxed_{};
 #endif
     std::uintptr_t image_base_{};
@@ -893,13 +974,13 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
   public:
     explicit ExperimentalBds2630SignAdapter(endstone::Server &server)
         : server_(server), exact_runtime_(exactRuntime(server)) {
-#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && !ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         installPlayerEditHook();
 #endif
     }
 
     ~ExperimentalBds2630SignAdapter() override {
-#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && !ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         uninstallPlayerEditHook();
 #endif
     }
@@ -963,19 +1044,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         result.restart_persistence = complete_native_gate;
         result.exact_binary_hash_match = complete_native_gate;
         result.symbols_validated = complete_native_gate;
-#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-        // The first stable Linux release exposes only live-proven fields. Keep
-        // known failures and client-only/manual surfaces unavailable so callers
-        // cannot mistake an implemented boundary for a supported contract.
-        result.text_objects = false;
-        result.text_color = false;
-        result.glowing = false;
-        result.waxed = false;
-        result.editor_lock = false;
-        result.open_editor = false;
-        result.player_edit_events = false;
-        result.restart_persistence = false;
-#endif
         // Source control remains fail-closed. The activation workflow is the
         // only writer that can embed a reviewed disposable-world pass here.
         result.stage_probe_passed = complete_native_gate &&
@@ -1088,22 +1156,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(patch.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
-#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-        const auto unsupported_text = [](const std::optional<SignTextPatch> &side) {
-            return side &&
-                   (side->text_object || side->message_is_text_object ||
-                    side->argb || side->glowing);
-        };
-        if (unsupported_text(patch.front) || unsupported_text(patch.back) ||
-            patch.waxed || patch.locked_for_editing_by ||
-            patch.locked_for_editing_xuid) {
-            return {
-                SignApplyStatus::Unsupported,
-                "v0.2.0 does not support text objects, color, glow, wax, or editor locks",
-                current->revision,
-            };
-        }
-#endif
 #if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (force) {
             return {
@@ -1331,30 +1383,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             try {
                 apply_snapshot(expected);
                 auto updated = capture(patch.location);
-                if (updated && updated->front.lines == expected.front.lines &&
-                    updated->front.filtered_message == expected.front.filtered_message &&
-                    updated->front.text_object == expected.front.text_object &&
-                    updated->front.message_is_text_object == expected.front.message_is_text_object &&
-                    updated->front.argb == expected.front.argb &&
-                    updated->front.glowing == expected.front.glowing &&
-                    updated->front.hide_glow_outline == expected.front.hide_glow_outline &&
-                    updated->front.persist_formatting == expected.front.persist_formatting &&
-                    updated->front.owner_xuid == expected.front.owner_xuid &&
-                    updated->back.lines == expected.back.lines &&
-                    updated->back.filtered_message == expected.back.filtered_message &&
-                    updated->back.text_object == expected.back.text_object &&
-                    updated->back.message_is_text_object == expected.back.message_is_text_object &&
-                    updated->back.argb == expected.back.argb &&
-                    updated->back.glowing == expected.back.glowing &&
-                    updated->back.hide_glow_outline == expected.back.hide_glow_outline &&
-                    updated->back.persist_formatting == expected.back.persist_formatting &&
-                    updated->back.owner_xuid == expected.back.owner_xuid &&
-                    updated->waxed == expected.waxed &&
-                    updated->locked_for_editing_by == expected.locked_for_editing_by &&
-                    updated->remote_profanity_filter_enabled ==
-                        expected.remote_profanity_filter_enabled &&
-                    updated->local_profanity_filter_enabled ==
-                        expected.local_profanity_filter_enabled) {
+                if (updated && samePayload(*updated, expected)) {
                     return {
                         SignApplyStatus::Applied,
                         "applied and read back the complete native sign payload",
@@ -1737,21 +1766,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 0,
             };
         }
-#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-        const auto unsupported_text = [](const SignText &side) {
-            return side.message_is_text_object || !side.text_object.empty() ||
-                   side.argb != 0xFF000000u || side.glowing;
-        };
-        if (unsupported_text(request.front) || unsupported_text(request.back) ||
-            request.waxed || request.locked_for_editing_by != -1 ||
-            request.locked_for_editing_xuid) {
-            return {
-                SignApplyStatus::Unsupported,
-                "v0.2.0 placement does not support text objects, color, glow, wax, or editor locks",
-                0,
-            };
-        }
-#endif
 #if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (requiresSignNbt(request))
             return nbtUnsupported(0);
@@ -2264,15 +2278,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
 
     SignApplyResult openEditor(endstone::Player &player,
                                const SignOpenEditorRequest &request) override {
-#if ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-        (void)player;
-        (void)request;
-        return {
-            SignApplyStatus::Unsupported,
-            "v0.2.0 does not support editor locking or editor opening",
-            0,
-        };
-#endif
         if (!exact_runtime_)
             return runtimeMismatch();
         if (!text_bridge_.executableIdentityMatch())
@@ -2424,13 +2429,26 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
 
     [[nodiscard]] static bool sameTextExceptOwner(const SignText &left,
                                                   const SignText &right) {
-        return left.lines == right.lines &&
+        if (left.message_is_text_object != right.message_is_text_object)
+            return false;
+        const bool same_message = left.message_is_text_object
+                                      ? sameTextObject(left.text_object,
+                                                       right.text_object)
+                                      : left.lines == right.lines;
+        return same_message &&
                left.filtered_message == right.filtered_message &&
-               left.text_object == right.text_object &&
-               left.message_is_text_object == right.message_is_text_object &&
                left.argb == right.argb && left.glowing == right.glowing &&
                left.hide_glow_outline == right.hide_glow_outline &&
                left.persist_formatting == right.persist_formatting;
+    }
+
+    [[nodiscard]] static bool sameTextObject(const std::string_view left,
+                                             const std::string_view right) noexcept {
+        try {
+            return nlohmann::json::parse(left) == nlohmann::json::parse(right);
+        } catch (...) {
+            return false;
+        }
     }
 
     [[nodiscard]] static bool sameText(const SignText &left,

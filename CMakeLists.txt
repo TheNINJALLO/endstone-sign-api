@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(endstone_sign VERSION 0.2.0 LANGUAGES CXX)
+project(endstone_sign VERSION 0.2.1 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -14,7 +14,7 @@ option(ENDSTONE_SIGN_BUILD_NATIVE_2630 "Build the guarded BDS 26.30 boundary" ON
 option(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
        "Build the unverified native bridge candidate for disposable-server probing" OFF)
 option(ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-       "Build the exact Linux native bridge with the supported v0.2.0 capability subset" OFF)
+       "Build the exact Linux native bridge with all native capabilities available for qualification" OFF)
 option(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
        "Compile the generated, stage-verified SignBlockActor bridge" OFF)
 option(ENDSTONE_SIGN_WARNINGS_AS_ERRORS "Treat project warnings as errors" ON)

@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELEASE_VERSION: 0.2.0
+  RELEASE_VERSION: 0.2.1-alpha.1
   PROJECT_SLUG: endstone-sign-api
 
 jobs:

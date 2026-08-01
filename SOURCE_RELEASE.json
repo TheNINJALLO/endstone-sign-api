@@ -1,6 +1,6 @@
 {
   "name": "endstone-sign-api",
-  "version": "0.2.0",
+  "version": "0.2.1-alpha.1",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapter_family": "Minecraft Bedrock 26.30",
@@ -15,7 +15,7 @@
     "v0.11.6"
   ],
   "portable_core": "complete full-lifecycle reference implementation",
-  "native_sign_backend": "Supported Linux x64 sign text and structure service for exact BDS 1.26.33.1; optional advanced capabilities remain gated",
+  "native_sign_backend": "Linux x64 full-system qualification candidate for exact BDS 1.26.33.1 with all native capability layers enabled; complete-control activation remains evidence-gated",
   "platforms": [
     "linux-x64"
   ],

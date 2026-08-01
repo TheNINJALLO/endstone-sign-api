@@ -1,10 +1,20 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0`
+Candidate: `0.2.1-alpha.1`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-08-01`
 
 ## Result
+
+The portable suites pass locally, and every exact-Linux native capability is
+available together for the final acceptance run. TextObject now validates the
+Bedrock `{"rawtext":[{"text":"a7"}]}` schema and uses a fingerprinted native JSON
+serializer instead of the rendered-message cache. The editor-lock probe now
+checks the runtime ID that BDS actually stores instead of requiring a fabricated
+XUID. `completeControl()` remains false until the strict matrix, seven guided
+client checks, restart, cleanup, log, and world backup pass validation.
+
+## Historical v0.2.0 result
 
 The portable C++20 and Python layers pass local validation. The stable Linux
 native build is exact-gated to BDS `1.26.33.1` and Endstone `0.11.6`. Its

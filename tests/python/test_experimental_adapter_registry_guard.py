@@ -107,6 +107,13 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
 
         self.assertIn("ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE", cmake)
         self.assertIn(
+            "if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR\n"
+            "       ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE OR\n"
+            "       ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)\n"
+            "        if(ENDSTONE_SIGN_NATIVE_MANIFEST STREQUAL",
+            cmake,
+        )
+        self.assertIn(
             "-DENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=ON",
             (ROOT / "scripts" / "build_exact.py").read_text(encoding="utf-8"),
         )

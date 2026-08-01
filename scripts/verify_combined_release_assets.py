@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the exact cross-platform Sign API asset set before publishing."""
+"""Verify the exact Linux x64 Sign API asset set before publishing."""
 from __future__ import annotations
 
 import argparse
@@ -31,11 +31,7 @@ def expected_assets(slug: str, release: str, bds: str) -> set[str]:
         f"{plugin_stem}.so",
         f"{stem}-linux-x64.zip",
         f"{stem}-linux-x64.sha256",
-        f"{plugin_stem}.dll",
-        f"{stem}-windows-x64.zip",
-        f"{stem}-windows-x64.sha256",
         f"{WHEEL_PREFIX}-{wheel_version}-cp314-cp314-linux_x86_64.whl",
-        f"{WHEEL_PREFIX}-{wheel_version}-cp314-cp314-win_amd64.whl",
     }
 
 

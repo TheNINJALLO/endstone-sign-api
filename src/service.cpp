@@ -97,6 +97,7 @@ SignService::SignService(
     : adapter_(std::move(adapter)), limits_(limits),
       event_bus_(event_bus ? std::move(event_bus) : std::make_shared<SignEventBus>()) {
     if (!adapter_) throw std::invalid_argument("SignService requires an adapter");
+    adapter_->bindEventBus(event_bus_);
 }
 
 std::optional<std::string> SignService::validateLocation(

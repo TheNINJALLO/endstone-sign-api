@@ -1,6 +1,8 @@
 #include "bedrock/entity/components/actor_owner_component.h"
+#include "bedrock/entity/components/actor_unique_id_component.h"
 #include "bedrock/entity/components/player_component.h"
 #include "bedrock/world/actor/player/player.h"
+#include "bedrock/world/level/level.h"
 #include "endstone/core/level/dimension.h"
 
 #include <cstddef>
@@ -9,9 +11,12 @@
 #if defined(_WIN32)
 #include <Windows.h>
 #define ENDSTONE_SIGN_LOCAL
+#define ENDSTONE_SIGN_LOCAL_FALLBACK
 #elif defined(__linux__)
 #include <link.h>
 #define ENDSTONE_SIGN_LOCAL __attribute__((visibility("hidden")))
+#define ENDSTONE_SIGN_LOCAL_FALLBACK \
+  __attribute__((visibility("hidden"), weak))
 #else
 #error "The exact Sign adapter supports only Windows and Linux"
 #endif
@@ -19,7 +24,7 @@
 // WeakEntityRef<Player>::tryUnwrap ultimately needs this small lookup. Keeping
 // the exact lookup local prevents the linker from importing actor.cpp, whose
 // many unrelated actor helpers transitively import the item registry.
-ENDSTONE_SIGN_LOCAL Actor *
+ENDSTONE_SIGN_LOCAL_FALLBACK Actor *
 Actor::tryGetFromEntity(const EntityContext &entity, const bool include_removed) {
   auto *component = entity.tryGetComponent<ActorOwnerComponent>();
   if (!component)
@@ -27,6 +32,21 @@ Actor::tryGetFromEntity(const EntityContext &entity, const bool include_removed)
 
   auto &actor = component->getActor();
   return !actor.removed_ || include_removed ? &actor : nullptr;
+}
+
+// The release adapter needs the actor ID for native editor-lock ownership.
+// Keep the pinned implementation local so that this one call does not extract
+// Endstone's broad actor.cpp archive member and its unrelated item-registry
+// imports. getNewUniqueID remains a typed virtual Level ABI call.
+ENDSTONE_SIGN_LOCAL_FALLBACK ActorUniqueID Actor::getOrCreateUniqueID() const {
+  auto component = getPersistentComponent<const ActorUniqueIDComponent>();
+  if (component->unique_id.raw_id != -1)
+    return component->unique_id;
+
+  auto unique_id = level_->getNewUniqueID();
+  return entity_context_
+      .getOrAddComponent<ActorUniqueIDComponent>(unique_id)
+      .unique_id;
 }
 
 // EndstonePlayer::getHandle() instantiates this one private helper. Supplying
@@ -98,3 +118,4 @@ ENDSTONE_SIGN_LOCAL ::Dimension &EndstoneDimension::getHandle() const {
 } // namespace endstone::core
 
 #undef ENDSTONE_SIGN_LOCAL
+#undef ENDSTONE_SIGN_LOCAL_FALLBACK

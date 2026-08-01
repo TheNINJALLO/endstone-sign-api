@@ -32,18 +32,16 @@ jobs:
           python scripts/verify_bds_sign_identifiers.py --platform linux-x64
           python tools/verify_native_symbol_candidates.py
           python tools/verify_fail_closed.py
-      - name: Verify both native manifests remain unverified
+      - name: Verify the Linux native manifest remains unverified
         shell: bash
         run: |
           set -euxo pipefail
-          for platform in linux-x64 windows-x64; do
-            manifest="native/manifests/${platform}-1.26.33.1.json"
-            python tools/verify_native_manifest.py "$manifest" --allow-incomplete
-            if python tools/verify_native_manifest.py "$manifest"; then
-              echo "$manifest unexpectedly passed the verified-release gate" >&2
-              exit 1
-            fi
-          done
+          manifest="native/manifests/linux-x64-1.26.33.1.json"
+          python tools/verify_native_manifest.py "$manifest" --allow-incomplete
+          if python tools/verify_native_manifest.py "$manifest"; then
+            echo "$manifest unexpectedly passed the verified-release gate" >&2
+            exit 1
+          fi
 
   portable:
     name: Portable tests (${{ matrix.os }}, Python ${{ matrix.python }})
@@ -93,9 +91,6 @@ jobs:
           - os: ubuntu-22.04
             platform: linux-x64
             bds: "1.26.33"
-          - os: windows-2022
-            platform: windows-x64
-            bds: "1.26.33"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
@@ -125,36 +120,14 @@ jobs:
             chmod +x llvm.sh
             sudo ./llvm.sh 18
           fi
-          sudo apt-get install -y ninja-build clang-tools-18 libc++-18-dev libc++abi-18-dev
+          sudo apt-get install -y ninja-build clang-tools-18 lld-18 libc++-18-dev libc++abi-18-dev
           sudo update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-18 100 || true
           echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
           clang-18 --version
           clang++-18 --version
           ninja --version
 
-      - name: Locate Windows toolchains
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = "Stop"
-          git config --global core.longpaths true
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) { throw "vswhere.exe was not found at $vswhere" }
-          $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if (-not $vs) { throw "Visual Studio 2022 C++ tools were not found" }
-          "VS_PATH=$vs" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          $llvm = "C:\Program Files\LLVM\bin"
-          if (-not (Test-Path (Join-Path $llvm "clang-cl.exe"))) {
-            choco install llvm -y --no-progress
-          }
-          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
-            choco install ninja -y --no-progress
-          }
-          $llvm | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          cmake --version
-
       - name: Build and package Linux probe candidate
-        if: runner.os == 'Linux'
         shell: bash
         run: >-
           python scripts/build_exact.py
@@ -162,16 +135,31 @@ jobs:
           --platform "${{ matrix.platform }}"
           --parallel 2
 
-      - name: Build and package Windows probe candidate
-        if: runner.os == 'Windows'
-        shell: cmd
+      - name: Publish exact-build failure summary
+        if: failure()
+        shell: pwsh
         run: |
-          call "%VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64
-          set "PATH=C:\Program Files\LLVM\bin;%PATH%"
-          clang-cl --version
-          lld-link --version
-          ninja --version
-          python scripts\build_exact.py --bds "${{ matrix.bds }}" --platform "${{ matrix.platform }}" --parallel 2
+          $log = Get-ChildItem dist/diagnostics -Filter exact-build.log -Recurse -ErrorAction SilentlyContinue |
+            Select-Object -First 1
+          if (-not $log) {
+            Write-Host "::error title=Exact native build failed::No exact-build.log was produced."
+            exit 0
+          }
+          $diagnostics = @(Get-Content $log.FullName | Where-Object {
+            $_ -match '(?i)(fatal error:|\berror:|\berror C[0-9]+:|undefined (reference|symbol)|\bld(?:\.lld)?(?:-[0-9]+)?:)'
+          } | Select-Object -Last 20)
+          if ($diagnostics.Count -eq 0) {
+            Write-Host "::error title=Exact native build failed::The build failed without a compiler diagnostic line."
+            exit 0
+          }
+          $message = $diagnostics -join "`n"
+          if ($env:GITHUB_WORKSPACE) {
+            $message = $message.Replace($env:GITHUB_WORKSPACE, '<workspace>')
+          }
+          $message = $message -replace 'https?://\S+', '<url>'
+          $message = $message -replace '(?i)(token|password|secret)=[^\s]+', '$1=<redacted>'
+          $message = $message.Replace('%', '%25').Replace("`r", '%0D').Replace("`n", '%0A')
+          Write-Host "::error title=Exact native build failed::$message"
 
       - name: Verify platform release assets
         run: >-
@@ -183,20 +171,11 @@ jobs:
           --release-dir dist/release
 
       - name: Smoke-test Linux test-command wheel
-        if: runner.os == 'Linux'
         shell: bash
         run: |
           wheels=(dist/release/*-cp314-cp314-linux_x86_64.whl)
           test "${#wheels[@]}" -eq 1
           python tests/python/verify_test_wheel.py "${wheels[0]}"
-
-      - name: Smoke-test Windows test-command wheel
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $wheels = @(Get-ChildItem dist/release -Filter "*-cp314-cp314-win_amd64.whl")
-          if ($wheels.Count -ne 1) { throw "Expected one Windows test wheel; found $($wheels.Count)" }
-          python tests/python/verify_test_wheel.py "$($wheels[0].FullName)"
 
       - name: Upload disposable-server test package
         uses: actions/upload-artifact@v7
@@ -225,7 +204,7 @@ jobs:
           retention-days: 14
 
   test-wheel:
-    name: Verify both Sign API server-test wheels
+    name: Verify the Linux Sign API server-test wheel
     needs: [metadata, exact-probe-candidate]
     runs-on: ubuntu-24.04
     steps:
@@ -237,7 +216,7 @@ jobs:
         run: |
           python -m pip install "endstone==0.11.6"
           python -m pip install -e .
-      - name: Download both platform packages
+      - name: Download the Linux package
         uses: actions/download-artifact@v8
         with:
           pattern: ${{ env.PROJECT_SLUG }}-probe-candidate-*
@@ -247,7 +226,7 @@ jobs:
         shell: bash
         run: |
           mapfile -t wheels < <(find dist/test-wheel -maxdepth 1 -type f -name '*.whl' | sort)
-          test "${#wheels[@]}" -eq 2
+          test "${#wheels[@]}" -eq 1
           for wheel in "${wheels[@]}"; do
             python tests/python/verify_test_wheel.py "$wheel" --structure-only
           done

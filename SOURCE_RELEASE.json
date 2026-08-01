@@ -15,10 +15,9 @@
     "v0.11.6"
   ],
   "portable_core": "complete full-lifecycle reference implementation",
-  "native_sign_backend": "alpha.9 full-system qualification candidate with exact-binary-gated replace, clone, move, and transactional rollback; verified complete-control bridge remains fail-closed",
+  "native_sign_backend": "Linux x64 alpha.9 full-system qualification candidate with exact-binary-gated complete native lifecycle; verified activation remains fail-closed until live acceptance",
   "platforms": [
-    "linux-x64",
-    "windows-x64"
+    "linux-x64"
   ],
   "python": "pure Python reference package supports 3.11+"
 }

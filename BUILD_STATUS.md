@@ -10,7 +10,7 @@ Version: **0.2.0-alpha.9**
 - Linux portable build: validated locally.
 - C++ tests: passing.
 - Pure Python package: implemented.
-- Tag-driven GitHub SDK and wheel release workflow: implemented.
+- Tag-driven Linux x64 SDK and wheel release workflow: implemented.
 - Python tests: passing.
 - Source ZIP, pure-Python wheel, and portable Linux SDK package: validated.
 - Service ABI: `endstone:sign:v2`.
@@ -20,20 +20,19 @@ Version: **0.2.0-alpha.9**
 - Target package: BDS `1.26.33.1`.
 - Runtime string: `26.33`.
 - Endstone: `0.11.6`.
-- Windows archive identity: pinned.
 - Linux archive identity: pinned.
 - Linux executable identity: pinned and matched by the off-site report.
-- Windows executable identity: pinned from the exact official archive.
-- Linux plain-text candidates: independently mapped and protected by exact
-  executable, full-function, vtable, representation, readback, and rollback gates.
+- Linux native entry points and data boundaries: independently mapped and
+  protected by exact executable, full-function, vtable, representation,
+  readback, and rollback gates.
 - The separate alpha.6 Linux byte-candidate ledger passes its exact-ELF range,
   full-hash, and unique-entry-fingerprint audit; it remains non-activating static
   evidence only.
-- Windows runtime executable-identity verification and sign text symbols: unresolved; its probe candidate is build/packaging diagnostics only, with live capture and mutation disabled.
-- Verified bridge source: absent.
+- Full Linux bridge source: implemented in the guarded release-candidate wrapper;
+  the generated activation proof remains absent until live acceptance passes.
 - Stage probe: not passed.
-- Experimental service registration: enabled with partial capabilities in the
-  disposable-server candidate.
+- Experimental service registration: enabled with every implemented pre-stage
+  capability in the disposable-server candidate.
 - Linux structural mutation: executable-hash gated; blank placement,
   structural capture, replacement, clone, move, no-drop removal, UI-only
   editor dispatch, and multi-operation rollback are exposed for the alpha.9
@@ -71,16 +70,17 @@ Version: **0.2.0-alpha.9**
 - Raw Linux formatting-code text: transported and read back as ordinary UTF-8
   within the 22-byte boundary across the hosted matrix; client rendering is not
   inferred.
-- Advanced SignBlockActor NBT: color, glow, outline, wax, filtered text,
-  TextObject, owner, formatting flags, profanity state, and editor locking stay
-  capability-gated and are never auto-marked passed.
+- Advanced SignBlockActor fields: color, glow, outline, wax, filtered text,
+  TextObject, owner, formatting flags, profanity state, and editor locking are
+  implemented behind the exact Linux native gates and must pass live readback.
 - Standalone native assets: published under the canonical install-ready
   `endstone_sign_bds_1_26_33` filename; tester discovery also recognizes the
   legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
-Use the alpha.9 native candidate only in a backed-up disposable world. It is intended
-to collect the live evidence required for the next boundary, not for production.
+Use the alpha.9 native candidate only in a backed-up disposable world until its
+full Linux acceptance report passes. It is intended to collect the live evidence
+required for the release boundary, not to bypass that evidence.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
 `dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
 48 default cases, including the corrected legacy dark-oak standing and wall

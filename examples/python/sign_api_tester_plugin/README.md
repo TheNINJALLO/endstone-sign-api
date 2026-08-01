@@ -11,12 +11,25 @@ sign blocks and may remove only cells recorded as runner-owned.
 
 ## Alpha.9 full-system qualification
 
-The standalone native download is already named
-`endstone_sign_bds_1_26_33.so` (or `.dll`); place it and the matching alpha.9
-tester wheel directly in the server's `plugins/` directory. The tester also
+The Linux-only standalone native download is named
+`endstone_sign_bds_1_26_33.so`; place it and the matching alpha.9 Linux tester
+wheel directly in the server's `plugins/` directory. The tester also
 recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
 working directory.
+
+Verify the downloaded release before installation. `SHA256SUMS.txt` covers all
+four Linux candidate assets; the platform manifest covers the native library,
+ZIP, and matching tester wheel:
+
+```bash
+gh release download v0.2.0-alpha.9 \
+  --repo TheNINJALLO/endstone-sign-api \
+  --dir alpha9-assets
+cd alpha9-assets
+sha256sum --check SHA256SUMS.txt
+sha256sum --check endstone-sign-api-v0.2.0-alpha.9-bds-1.26.33-linux-x64.sha256
+```
 
 Choose an air-filled disposable arena large enough for a 28-by-17-block
 default footprint. The command coordinates are the arena anchor and the signs
@@ -75,28 +88,51 @@ Useful commands:
 /signprobe path
 ```
 
-The acceptance session spans operations that cannot happen in one server
-tick. Perform the client UI/player-edit checks, reconnect, and restart checks
-against the same retained arena; record concrete evidence and required hash
-metadata with the strict stage-report commands.
+The acceptance session spans actions that cannot happen in one server tick.
+When the automated runner says guided evidence remains, perform each real
+client action and then record it. Do not paste these examples unchanged:
 
-Those seven guided results are operator-attested. The validator binds them to
-this run, world, executable, plugin, tester wheel, final log, and backup, but it
-does not independently see the Bedrock client UI. The release reviewer must
-inspect the recorded notes and bound artifacts.
+```text
+/signprobe editor front
+/signprobe record open_editor_front true Front editor opened at <coordinates>; observed <time/log reference>
+/signprobe editor back
+/signprobe record open_editor_back true Back editor opened at <coordinates>; observed <time/log reference>
+/signprobe record player_edit_event_observed true Client edit emitted the expected event; log <reference>
+/signprobe record player_edit_event_cancelled true Cancelled client edit left the captured content and revision unchanged; log <reference>
+/signprobe record client_refresh true Connected client immediately showed the captured front and back state at <coordinates>
+/signprobe record player_reconnect true Reconnected client and API capture retained the expected state and revision
+/signprobe record server_restart_persistence true Full stop/start retained the expected state and revision in the client and API capture
+```
 
-After recording the seven guided client/player/reconnect/restart probes, run
-ownership-aware matrix cleanup. Do not call `/signprobe remove` on the retained
-sign: cleanup supplies and auto-projects the required `remove` evidence. Hash
-the final server log and post-cleanup world backup into the stage report, then
-finish:
+These seven results are operator-attested. The validator binds them to this
+run, world, executable, plugin, tester wheel, final log, and backup, but it does
+not independently see the Bedrock client UI. A release reviewer must inspect
+the recorded notes and bound artifacts.
+
+After those checks, run ownership-aware cleanup. Do not call
+`/signprobe remove` on the retained sign: cleanup supplies and auto-projects the
+required `remove` evidence.
 
 ```text
 /signprobe cleanup confirm
-/signprobe meta log_sha256 <64-lowercase-hex>
-/signprobe meta world_backup_sha256 <64-lowercase-hex>
+/signprobe runstatus
+/signprobe path
+```
+
+Stop the server cleanly, preserve an immutable final-log copy, and create a
+post-cleanup world backup. Hash those exact files, restart only to record the
+hashes and finish, and pass the same immutable files to the offline validator:
+
+```bash
+sha256sum acceptance-server.evidence.log post-cleanup-world-backup.zip
+```
+
+```text
+/signprobe meta log_sha256 <acceptance-server.evidence.log-sha256>
+/signprobe meta world_backup_sha256 <post-cleanup-world-backup.zip-sha256>
 /signprobe finish
 /signprobe runstatus
+/signprobe path
 ```
 
 On the host, validate the final files:
@@ -107,17 +143,16 @@ python tools/validate_full_system_acceptance.py \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
   --tester-wheel plugins/endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl \
-  --server-log acceptance-server.log \
+  --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
 
-On Windows, pass the exact `bedrock_server.exe` and the Windows `.dll` and
-tester wheel paths instead.
-
-Repeat independently on Windows. An official-release review requires both
-platform validators to pass. The validator rejects anything short of 48/48
-cases, 31/31 probes, all required capabilities, zero failed/skipped/manual
-coverage, exact identity agreement, and conflict-free cleanup.
+The final command must print `full-system acceptance VALID`. This result
+qualifies only the exact Linux artifacts supplied to the validator; alpha.9
+does not publish or claim support for a Windows native DLL or tester wheel. The
+validator rejects anything short of 48/48 cases, 31/31 probes, all required
+capabilities, zero failed/skipped/manual coverage, exact identity agreement,
+and conflict-free cleanup.
 
 `/signprobe config` prints the generated editable configuration path. You can
 select materials/forms, canonical orientation states, support block, spacing,
@@ -140,21 +175,12 @@ the support still matches the configured block.
 ## Capability boundaries
 
 On the exact Linux server, status must show adapter
-`bds-1.26.33.1-experimental-linux-plain-text`, with `exact_build_match`,
-`exact_binary_hash_match`, `capture`, `client_updates`, `place`, `read_text`,
-`write_text`, `front_and_back`, and `per_line_write` true before the matrix can
-start. A captured actor must report `experimental_text_captured` before text
-mutation.
-
-ARGB color, glow, wax, filtered text, text objects, owner XUID, hide-outline,
-formatting flags, profanity state, and editor locks remain behind the
-unverified SignBlockActor NBT boundary. The runner records them as unsupported
-with `mutation_attempted=false` when their individual capability is closed.
-Clone, move, and multi-operation atomic transactions are likewise not assumed.
-
-The Windows candidate cannot pass the new exact executable-hash structural
-gate and has no text bridge. It remains useful for build/packaging diagnostics,
-not live mutation.
+`bds-1.26.33.1-linux-release`, with every pre-stage native capability true
+before acceptance can start. The candidate covers both-side text, filtered
+text and TextObjects, owner XUID, color/glow/outline/formatting fields, wax,
+editor locking, profanity state, placement/removal/replacement/clone/move,
+atomic transactions, client updates, and API/player edit events. Any closed
+capability is a release blocker rather than a skipped test.
 
 Client refresh, editor UI acknowledgement, player edit interception,
 reconnect, and restart persistence cannot be proven by one uninterrupted
@@ -183,3 +209,15 @@ non-empty passing evidence and all required SHA-256 fields are valid. A matrix
 report supplements that evidence; the alpha.9 qualifier additionally requires
 truthful native capabilities and zero skipped steps, so hand-recorded evidence
 cannot turn the current missing native layers into a passing result.
+
+## Third-party plugin boundary
+
+This tester wheel is a qualification harness, not a runtime SDK. Its
+`_endstone_sign_live` extension is private and version-locked to the tester;
+third-party Python plugins must not import it. Live C++ consumers should load
+the typed `LiveSignService` named `endstone:sign:v2`, require ABI 2, require
+`completeControl()` for production use, capture a fresh revision before every
+mutation, and handle every non-applied result. See the repository root README
+for service-lookup and patch examples. The pure Python
+`endstone_sign` package remains suitable for typed plugin logic and in-memory
+unit tests until a public live Python binding is released.

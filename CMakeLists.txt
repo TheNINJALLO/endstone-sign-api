@@ -34,6 +34,25 @@ if(NOT ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^${ENDSTONE_SIGN_PROJECT_VERSION_R
         "SOURCE_RELEASE.json version '${ENDSTONE_SIGN_RELEASE_VERSION}' does not match project version '${PROJECT_VERSION}'")
 endif()
 
+# SOURCE_RELEASE.json uses release-tag spelling while Python package metadata
+# must use PEP 440 spelling. Derive the bridge version here so the native
+# module and its containing wheel cannot silently advertise different builds.
+if(ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-alpha\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}a${CMAKE_MATCH_2}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-beta\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}b${CMAKE_MATCH_2}")
+elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
+       "^([0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.([0-9]+)$")
+    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}rc${CMAKE_MATCH_2}")
+else()
+    message(FATAL_ERROR
+        "Cannot derive a PEP 440 bridge version from release version '${ENDSTONE_SIGN_RELEASE_VERSION}'")
+endif()
+
 set(ENDSTONE_SIGN_CORE_SOURCES
     src/text.cpp
     src/placement.cpp
@@ -171,7 +190,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             message(FATAL_ERROR
                 "A verified release bridge requires a manifest with status=verified")
         endif()
-        if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+        if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+           ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
             set(ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR
                 "${CMAKE_CURRENT_BINARY_DIR}/generated/endstone_sign/internal")
             file(MAKE_DIRECTORY "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}")
@@ -315,7 +335,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ${endstone_BINARY_DIR}/include
         ${endstone_BINARY_DIR}/include/generated
     )
-    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+       ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
         target_sources(sign_api PRIVATE
             "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}/experimental_runtime_identity.h")
         target_include_directories(sign_api PRIVATE
@@ -325,6 +346,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
         ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE}>
+        ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_BDS_BUILD="${ENDSTONE_BDS_BUILD}"
         ENDSTONE_SIGN_BDS_PACKAGE="${ENDSTONE_BDS_PACKAGE}"
         ENDSTONE_SIGN_ENDSTONE_VERSION="${ENDSTONE_EXACT_VERSION}"
@@ -361,6 +383,10 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         target_link_options(sign_api PRIVATE "LINKER:--exclude-libs,ALL")
     endif()
     if(UNIX AND NOT APPLE)
+        # The pinned Clang 18 Bedrock graph emits DWARF forms that Ubuntu
+        # 22.04's GNU ld cannot reliably consume. Keep the exact Linux link on
+        # the matching LLVM linker selected and checked by build_exact.py.
+        target_link_options(sign_api PRIVATE -fuse-ld=lld)
         add_custom_command(TARGET sign_api POST_BUILD
             COMMAND "${CMAKE_COMMAND}"
                 "-DPLUGIN_FILE:FILEPATH=$<TARGET_FILE:sign_api>"
@@ -385,6 +411,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             VISIBILITY_INLINES_HIDDEN ON
         )
         target_compile_features(_endstone_sign_live PRIVATE cxx_std_20)
+        target_compile_definitions(_endstone_sign_live PRIVATE
+            ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}")
         target_include_directories(_endstone_sign_live PRIVATE
             include
             ${endstone_SOURCE_DIR}/include

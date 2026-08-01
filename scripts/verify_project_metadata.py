@@ -61,8 +61,10 @@ expect('version = "0.2.0a9"' in pyproject, "Python project version")
 expect('__version__ = "0.2.0a9"' in init, "Python package version")
 expect('version = "0.2.0a9"' in tester_pyproject, "tester wheel version")
 expect('version = "0.2.0a9"' in tester_plugin, "tester plugin version")
-expect('module.attr("__version__") = "0.2.0a9"' in live_bindings,
-       "live bridge version")
+expect('module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION' in live_bindings,
+       "live bridge build-derived version")
+expect('ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}"' in cmake,
+       "CMake live bridge PEP 440 version definition")
 expect('module.def("place"' in live_bindings, "live bridge blank placement binding")
 for binding in (
     "set_extended_text",
@@ -72,6 +74,8 @@ for binding in (
     "move",
     "probe_atomic_rejection",
     "probe_api_event_cancellation",
+    "add_event_listener",
+    "remove_event_listener",
 ):
     expect(
         f'module.def("{binding}"' in live_bindings,
@@ -154,7 +158,10 @@ expect("install(DIRECTORY tools DESTINATION . COMPONENT sign_package" in cmake,
        "exact package installs full-system validator tools")
 expect("install(DIRECTORY examples DESTINATION . COMPONENT sign_package" in cmake,
        "exact package installs validator acceptance profile")
-expect(not (ROOT / "src/verified_bds_26_30_adapter.cpp").exists(), "verified bridge must be absent")
+verified_bridge = text("src/verified_bds_26_30_adapter.cpp")
+expect('#define ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION 1' in verified_bridge and
+       'makeVerifiedBds2630SignAdapter' in verified_bridge,
+       "verified bridge guarded implementation wrapper")
 
 expected_hashes = {
     "linux-x64": "68c52ababde987741029de091c09cd736fe894bc1fe99cf20f9ed5c659f0c180",

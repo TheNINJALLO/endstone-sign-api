@@ -243,7 +243,8 @@ class ExperimentalLinuxTextBridge {
             !isValidUtf8(owner_xuid)) {
             throw std::invalid_argument("native sign text owner failed validation");
         }
-        *reinterpret_cast<std::string *>(sideText(actor, side) + OwnerOffset) =
+        auto *text = reinterpret_cast<std::byte *>(sideText(actor, side));
+        *reinterpret_cast<std::string *>(text + OwnerOffset) =
             std::move(owner_xuid);
     }
 

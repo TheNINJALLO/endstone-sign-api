@@ -1,15 +1,20 @@
 #include "endstone_sign/experimental_bds_26_30_adapter.h"
 
+#include "endstone_sign/events.h"
+#include "endstone_sign/generated/native_manifest_data.h"
 #include "endstone_sign/internal/experimental_runtime_identity.h"
 #include "endstone_sign/native_binary_identity.h"
 #include "endstone_sign/placement.h"
+#include "endstone_sign/schema.h"
 
 #include <endstone/endstone.hpp>
+#include <funchook.h>
 
 #include "bedrock/world/actor/player/player.h"
 #include "bedrock/world/level/block/actor/block_actor.h"
 #include "bedrock/world/level/block/actor/vanilla_block_actor.h"
 #include "bedrock/world/level/block_source.h"
+#include "bedrock/nbt/compound_tag.h"
 #include "endstone/block/block_type.h"
 #include "endstone/core/level/dimension.h"
 #include "endstone/core/player.h"
@@ -20,6 +25,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <cmath>
 #include <exception>
 #include <limits>
 #include <memory>
@@ -31,6 +37,10 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
+
+#ifndef ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+#define ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION 0
+#endif
 
 #if defined(__linux__)
 #include <link.h>
@@ -176,14 +186,145 @@ class ExperimentalLinuxTextBridge {
                      std::move(canonical_message), std::move(canonical_owner));
     }
 
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    [[nodiscard]] SignText captureText(const BlockActor &actor,
+                                       const SignSide side) const {
+        requireCompatible(actor);
+        const auto *text = sideText(actor, side);
+        SignText result;
+        std::string error;
+        const auto lines = splitSignMessage(rawMessage(actor, side), &error);
+        if (!lines)
+            throw std::runtime_error("native sign message is invalid: " + error);
+        result.lines = *lines;
+        result.filtered_message = nativeString(text, FilteredMessageOffset, 16 * 1024,
+                                               "filtered sign message");
+        result.message_is_text_object = !plainMessage(actor, side);
+        result.text_object = result.message_is_text_object
+                                 ? nativeString(text, TextObjectStringOffset, 64 * 1024,
+                                                "sign text object")
+                                 : std::string{};
+        result.argb = colorToArgb(text + TextColorOffset);
+        result.glowing = byteAt(text, GlowingOffset) != 0;
+        result.hide_glow_outline = byteAt(text, HideGlowOutlineOffset) != 0;
+        result.persist_formatting = byteAt(text, PersistFormattingOffset) != 0;
+        result.owner_xuid = nativeString(text, OwnerOffset, 128, "sign text owner");
+        return result;
+    }
+
+    void applyText(BlockActor &actor, const SignSide side,
+                   const SignText &value) const {
+        requireCompatible(actor);
+        CompoundTag tag;
+        tag.putBoolean("IgnoreLighting", value.glowing);
+        tag.putBoolean("HideGlowOutline", value.hide_glow_outline);
+        tag.putInt("SignTextColor", static_cast<std::int32_t>(value.argb));
+        tag.putBoolean("PersistFormatting", value.persist_formatting);
+        tag.putString("TextOwner", value.owner_xuid);
+        tag.putString("Text", value.message_is_text_object
+                                  ? value.text_object
+                                  : flattenSignLines(value.lines));
+        tag.putString("FilteredText", value.filtered_message);
+        text_load_(sideText(actor, side), &tag, TextLoadModeAllData);
+    }
+
+    void applyClientPayload(BlockActor &actor, const CompoundTag &payload) const {
+        requireCompatible(actor);
+        if (const auto *front = payload.getCompound("FrontText"))
+            text_load_(sideText(actor, SignSide::Front), front, TextLoadModeNetwork);
+        if (const auto *back = payload.getCompound("BackText"))
+            text_load_(sideText(actor, SignSide::Back), back, TextLoadModeNetwork);
+    }
+
+    void setOwnerXuid(BlockActor &actor, const SignSide side,
+                      std::string owner_xuid) const {
+        requireCompatible(actor);
+        if (owner_xuid.size() > 128 || owner_xuid.find('\0') != std::string::npos ||
+            !isValidUtf8(owner_xuid)) {
+            throw std::invalid_argument("native sign text owner failed validation");
+        }
+        *reinterpret_cast<std::string *>(sideText(actor, side) + OwnerOffset) =
+            std::move(owner_xuid);
+    }
+
+    [[nodiscard]] bool waxed(const BlockActor &actor) const {
+        requireCompatible(actor);
+        return byteAt(reinterpret_cast<const std::byte *>(&actor), WaxedOffset) != 0;
+    }
+
+    void setWaxed(BlockActor &actor, const bool value) const {
+        requireCompatible(actor);
+        set_waxed_(&actor, value);
+    }
+
+    [[nodiscard]] std::int64_t lockedForEditingBy(const BlockActor &actor) const {
+        requireCompatible(actor);
+        std::int64_t value{};
+        std::memcpy(&value, reinterpret_cast<const std::byte *>(&actor) + LockOffset,
+                    sizeof(value));
+        return value;
+    }
+
+    void setLockedForEditingBy(BlockActor &actor, const std::int64_t value) const {
+        requireCompatible(actor);
+        std::memcpy(reinterpret_cast<std::byte *>(&actor) + LockOffset, &value,
+                    sizeof(value));
+    }
+
+    [[nodiscard]] bool remoteProfanityFilter(const BlockActor &actor) const {
+        requireCompatible(actor);
+        return byteAt(reinterpret_cast<const std::byte *>(&actor),
+                      RemoteProfanityFilterOffset) != 0;
+    }
+
+    [[nodiscard]] bool localProfanityFilter(const BlockActor &actor) const {
+        requireCompatible(actor);
+        return byteAt(reinterpret_cast<const std::byte *>(&actor),
+                      LocalProfanityFilterOffset) != 0;
+    }
+
+    void setProfanityFilters(BlockActor &actor, const bool remote,
+                             const bool local) const {
+        requireCompatible(actor);
+        auto *bytes = reinterpret_cast<std::byte *>(&actor);
+        bytes[RemoteProfanityFilterOffset] = static_cast<std::byte>(remote);
+        bytes[LocalProfanityFilterOffset] = static_cast<std::byte>(local);
+    }
+
+    [[nodiscard]] std::uintptr_t updateTextFromClientAddress() const {
+        requireReady();
+        return image_base_ + UpdateTextFromClientRva;
+    }
+#endif
+
   private:
     using GetRawMessage = const std::string &(*)(const BlockActor *, std::int32_t);
     using IsStringMessage = bool (*)(const BlockActor *, std::int32_t);
     using SetMessage =
         void (*)(BlockActor *, std::int32_t, std::string, std::string);
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    using TextLoad = void (*)(void *, const CompoundTag *, std::int32_t);
+    using SetWaxed = void (*)(BlockActor *, bool);
+#endif
 
     static constexpr std::uintptr_t SignBlockActorVtableRva = 0x0DCF6BA8;
     static constexpr std::uintptr_t HangingSignBlockActorVtableRva = 0x0DCFC968;
+
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    static constexpr std::size_t FilteredMessageOffset = 0x18;
+    static constexpr std::size_t TextColorOffset = 0x108;
+    static constexpr std::size_t GlowingOffset = 0x118;
+    static constexpr std::size_t HideGlowOutlineOffset = 0x119;
+    static constexpr std::size_t PersistFormattingOffset = 0x11A;
+    static constexpr std::size_t OwnerOffset = 0x120;
+    static constexpr std::size_t TextObjectStringOffset = 0x138;
+    static constexpr std::size_t WaxedOffset = 0xD8;
+    static constexpr std::size_t LockOffset = 0xE0;
+    static constexpr std::size_t RemoteProfanityFilterOffset = 0x190;
+    static constexpr std::size_t LocalProfanityFilterOffset = 0x191;
+    static constexpr std::int32_t TextLoadModeNetwork = 0;
+    static constexpr std::int32_t TextLoadModeAllData = 1;
+#endif
 
 #if defined(__linux__) && defined(__x86_64__)
     static constexpr std::uintptr_t SetMessageRva = 0x0BE10920;
@@ -198,6 +339,20 @@ class ExperimentalLinuxTextBridge {
     static constexpr std::size_t IsStringMessageSize = 27;
     static constexpr std::string_view IsStringMessageSha256 =
         "a4858fb54d1b9b1dc09cf28288d22cea7a2666e9925dbb70eac85d5dba7adbfc";
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    static constexpr std::uintptr_t TextLoadRva = 0x0BE0E390;
+    static constexpr std::size_t TextLoadSize = 4586;
+    static constexpr std::string_view TextLoadSha256 =
+        "934bc7322f7beaca4d01a8073e7eef47d7e13ba243674f5ac3760d5315f7cfc7";
+    static constexpr std::uintptr_t SetWaxedRva = 0x0BE10C80;
+    static constexpr std::size_t SetWaxedSize = 12;
+    static constexpr std::string_view SetWaxedSha256 =
+        "dfee51213b116264be00582eda841923fcff93888b1ac4aab51acfb32f2cc6f5";
+    static constexpr std::uintptr_t UpdateTextFromClientRva = 0x0BE0F580;
+    static constexpr std::size_t UpdateTextFromClientSize = 1825;
+    static constexpr std::string_view UpdateTextFromClientSha256 =
+        "1c952de008bdaa2db728369954e0cdbb5e8653005650e2ea18ac74f04ebea97d";
+#endif
 
     struct MainImageSearch {
         std::optional<std::uintptr_t> base;
@@ -225,6 +380,14 @@ class ExperimentalLinuxTextBridge {
         bool contains_set = false;
         bool contains_get = false;
         bool contains_string_message = false;
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        const auto text_load_address = base + TextLoadRva;
+        const auto set_waxed_address = base + SetWaxedRva;
+        const auto update_text_address = base + UpdateTextFromClientRva;
+        bool contains_text_load = false;
+        bool contains_set_waxed = false;
+        bool contains_update_text = false;
+#endif
         for (std::size_t index = 0; index < info->dlpi_phnum; ++index) {
             const auto &header = info->dlpi_phdr[index];
             if (header.p_type != PT_LOAD || (header.p_flags & PF_X) == 0)
@@ -240,8 +403,24 @@ class ExperimentalLinuxTextBridge {
                 contains_string_message ||
                 segmentContains(segment_begin, header.p_memsz,
                                 string_message_address, IsStringMessageSize);
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+            contains_text_load = contains_text_load ||
+                                 segmentContains(segment_begin, header.p_memsz,
+                                                 text_load_address, TextLoadSize);
+            contains_set_waxed = contains_set_waxed ||
+                                 segmentContains(segment_begin, header.p_memsz,
+                                                 set_waxed_address, SetWaxedSize);
+            contains_update_text = contains_update_text ||
+                                   segmentContains(segment_begin, header.p_memsz,
+                                                   update_text_address,
+                                                   UpdateTextFromClientSize);
+#endif
         }
-        if (!contains_set || !contains_get || !contains_string_message)
+        if (!contains_set || !contains_get || !contains_string_message
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+            || !contains_text_load || !contains_set_waxed || !contains_update_text
+#endif
+        )
             return 0;
         static_cast<MainImageSearch *>(opaque)->base = base;
         return 1;
@@ -334,7 +513,17 @@ class ExperimentalLinuxTextBridge {
             !functionHashMatches(get_address, GetRawMessageSize,
                                  GetRawMessageSha256) ||
             !functionHashMatches(string_message_address, IsStringMessageSize,
-                                 IsStringMessageSha256)) {
+                                 IsStringMessageSha256)
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+            || !functionHashMatches(*image.base + TextLoadRva, TextLoadSize,
+                                    TextLoadSha256) ||
+            !functionHashMatches(*image.base + SetWaxedRva, SetWaxedSize,
+                                 SetWaxedSha256) ||
+            !functionHashMatches(*image.base + UpdateTextFromClientRva,
+                                 UpdateTextFromClientSize,
+                                 UpdateTextFromClientSha256)
+#endif
+        ) {
             failure_ = "exact Sign text function fingerprint mismatch";
             return;
         }
@@ -343,6 +532,10 @@ class ExperimentalLinuxTextBridge {
         get_raw_message_ = reinterpret_cast<GetRawMessage>(get_address);
         is_string_message_ =
             reinterpret_cast<IsStringMessage>(string_message_address);
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        text_load_ = reinterpret_cast<TextLoad>(*image.base + TextLoadRva);
+        set_waxed_ = reinterpret_cast<SetWaxed>(*image.base + SetWaxedRva);
+#endif
         image_base_ = *image.base;
         ready_ = true;
         failure_.clear();
@@ -363,6 +556,36 @@ class ExperimentalLinuxTextBridge {
             throw std::runtime_error("native sign actor vtable fingerprint mismatch");
     }
 
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    [[nodiscard]] static std::uint8_t byteAt(const std::byte *base,
+                                             const std::size_t offset) noexcept {
+        return std::to_integer<std::uint8_t>(base[offset]);
+    }
+
+    [[nodiscard]] static std::string nativeString(
+        const std::byte *base, const std::size_t offset,
+        const std::size_t maximum, const std::string_view label) {
+        const auto &value = *reinterpret_cast<const std::string *>(base + offset);
+        if (value.size() > maximum || value.find('\0') != std::string::npos ||
+            !isValidUtf8(value)) {
+            throw std::runtime_error(std::string(label) + " failed validation");
+        }
+        return value;
+    }
+
+    [[nodiscard]] static std::uint32_t colorToArgb(const std::byte *value) noexcept {
+        std::array<float, 4> channels{};
+        std::memcpy(channels.data(), value, sizeof(channels));
+        const auto component = [](const float entry) {
+            return static_cast<std::uint32_t>(std::lround(
+                std::clamp(entry, 0.0F, 1.0F) * 255.0F));
+        };
+        return (component(channels[3]) << 24U) |
+               (component(channels[0]) << 16U) |
+               (component(channels[1]) << 8U) | component(channels[2]);
+    }
+#endif
+
     [[nodiscard]] const std::byte *sideText(const BlockActor &actor,
                                             const SignSide side) const {
         constexpr std::size_t FrontTextOffset = 0xC8;
@@ -377,9 +600,20 @@ class ExperimentalLinuxTextBridge {
         return text;
     }
 
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    [[nodiscard]] void *sideText(BlockActor &actor, const SignSide side) const {
+        return const_cast<std::byte *>(
+            sideText(static_cast<const BlockActor &>(actor), side));
+    }
+#endif
+
     GetRawMessage get_raw_message_{};
     IsStringMessage is_string_message_{};
     SetMessage set_message_{};
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    TextLoad text_load_{};
+    SetWaxed set_waxed_{};
+#endif
     std::uintptr_t image_base_{};
     bool executable_identity_match_{};
     bool ready_{};
@@ -590,6 +824,7 @@ SignApplyResult binaryIdentityMismatch(const std::uint64_t revision = 0) {
     };
 }
 
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
 SignApplyResult nbtUnsupported(const std::uint64_t revision) {
     return {
         SignApplyStatus::Unsupported,
@@ -599,6 +834,7 @@ SignApplyResult nbtUnsupported(const std::uint64_t revision) {
         revision,
     };
 }
+#endif
 
 SignApplyResult textGateClosed(const ExperimentalLinuxTextBridge &bridge,
                                const std::uint64_t revision) {
@@ -613,11 +849,33 @@ SignApplyResult textGateClosed(const ExperimentalLinuxTextBridge &bridge,
 class ExperimentalBds2630SignAdapter final : public ISignAdapter {
   public:
     explicit ExperimentalBds2630SignAdapter(endstone::Server &server)
-        : server_(server), exact_runtime_(exactRuntime(server)) {}
+        : server_(server), exact_runtime_(exactRuntime(server)) {
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        installPlayerEditHook();
+#endif
+    }
+
+    ~ExperimentalBds2630SignAdapter() override {
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        uninstallPlayerEditHook();
+#endif
+    }
+
+    void bindEventBus(std::shared_ptr<SignEventBus> event_bus) override {
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        event_bus_ = std::move(event_bus);
+#else
+        (void)event_bus;
+#endif
+    }
 
     [[nodiscard]] std::string_view name() const noexcept override {
         if (!exact_runtime_)
             return "bds-1.26.33.1-experimental-runtime-mismatch";
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        if (text_bridge_.ready())
+            return "bds-1.26.33.1-linux-release";
+#endif
         if (text_bridge_.ready())
             return "bds-1.26.33.1-experimental-linux-plain-text";
         if (!text_bridge_.executableIdentityMatch())
@@ -641,6 +899,33 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         result.client_updates = structural_mutation_gate;
         result.exact_build_match = exact_runtime_;
 
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        const bool complete_native_gate = exact_runtime_ && text_bridge_.ready();
+        result.read_text = complete_native_gate;
+        result.write_text = complete_native_gate;
+        result.front_and_back = complete_native_gate;
+        result.per_line_write = complete_native_gate;
+        result.text_objects = complete_native_gate;
+        result.filtered_text = complete_native_gate;
+        result.owner_xuid = complete_native_gate;
+        result.text_color = complete_native_gate;
+        result.glowing = complete_native_gate;
+        result.hide_glow_outline = complete_native_gate;
+        result.persist_formatting = complete_native_gate;
+        result.waxed = complete_native_gate;
+        result.editor_lock = complete_native_gate;
+        result.open_editor = complete_native_gate;
+        result.player_edit_events = complete_native_gate && hook_installed_ &&
+                                    !event_bus_.expired();
+        result.restart_persistence = complete_native_gate;
+        result.exact_binary_hash_match = complete_native_gate;
+        result.symbols_validated = complete_native_gate;
+        // Source control remains fail-closed. The activation workflow is the
+        // only writer that can embed a reviewed disposable-world pass here.
+        result.stage_probe_passed = complete_native_gate &&
+                                    generated::DisposableWorldProbePassed;
+        return result;
+#else
         // This deliberately advertises only the exact, readback-checked subset.
         // The complete-control gate remains closed until the hosted stage probe
         // and the remaining SignBlockActor boundaries are verified.
@@ -655,6 +940,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         result.symbols_validated = false;
         result.stage_probe_passed = false;
         return result;
+#endif
     }
 
     [[nodiscard]] std::optional<SignSnapshot> capture(const SignLocation &location) override {
@@ -680,6 +966,32 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             } else if (!text_bridge_.ready()) {
                 snapshot.actor_status = SignActorStatus::SymbolGateClosed;
             } else {
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                snapshot.front = text_bridge_.captureText(
+                    *native.access->actor, SignSide::Front);
+                snapshot.back = text_bridge_.captureText(
+                    *native.access->actor, SignSide::Back);
+                snapshot.waxed = text_bridge_.waxed(*native.access->actor);
+                snapshot.locked_for_editing_by =
+                    text_bridge_.lockedForEditingBy(*native.access->actor);
+                if (snapshot.locked_for_editing_by >= 0) {
+                    for (auto *online : server_.getOnlinePlayers()) {
+                        if (!online) continue;
+                        auto &handle = static_cast<endstone::core::EndstonePlayer &>(
+                                           *online).getHandle();
+                        if (handle.getOrCreateUniqueID().raw_id ==
+                            snapshot.locked_for_editing_by) {
+                            snapshot.locked_for_editing_xuid = online->getXuid();
+                            break;
+                        }
+                    }
+                }
+                snapshot.remote_profanity_filter_enabled =
+                    text_bridge_.remoteProfanityFilter(*native.access->actor);
+                snapshot.local_profanity_filter_enabled =
+                    text_bridge_.localProfanityFilter(*native.access->actor);
+                snapshot.actor_status = SignActorStatus::Captured;
+#else
                 std::string error;
                 const auto front_message =
                     text_bridge_.rawMessage(*native.access->actor, SignSide::Front);
@@ -694,6 +1006,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 snapshot.front.lines = *front_lines;
                 snapshot.back.lines = *back_lines;
                 snapshot.actor_status = SignActorStatus::ExperimentalTextCaptured;
+#endif
             }
             snapshot.canonical_snbt.clear();
             snapshot.revision = calculateSignRevision(snapshot);
@@ -719,6 +1032,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(patch.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (force) {
             return {
                 SignApplyStatus::Unsupported,
@@ -726,15 +1040,283 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
-        if (patch.expected_revision && *patch.expected_revision != current->revision) {
+#endif
+        if (!force && patch.expected_revision &&
+            *patch.expected_revision != current->revision) {
             return {
                 SignApplyStatus::Conflict,
                 "sign revision changed",
                 current->revision,
             };
         }
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+        if (requestsStructuralChange(patch)) {
+            if (!patch.send_client_update || !patch.persist) {
+                return {
+                    SignApplyStatus::Unsupported,
+                    "the release adapter supports persistent mutations with client updates",
+                    current->revision,
+                };
+            }
+
+            auto expected = applyPatchToSnapshot(*current, patch);
+            if (expected.locked_for_editing_xuid &&
+                !patch.locked_for_editing_by) {
+                bool matched = false;
+                for (auto *online : server_.getOnlinePlayers()) {
+                    if (!online ||
+                        online->getXuid() != *expected.locked_for_editing_xuid)
+                        continue;
+                    auto &handle =
+                        static_cast<endstone::core::EndstonePlayer &>(*online)
+                            .getHandle();
+                    expected.locked_for_editing_by =
+                        handle.getOrCreateUniqueID().raw_id;
+                    matched = true;
+                    break;
+                }
+                if (!matched) {
+                    return {
+                        SignApplyStatus::InvalidPatch,
+                        "locked_for_editing_xuid must identify an online player when no "
+                        "native actor ID is supplied",
+                        current->revision,
+                    };
+                }
+            }
+            if (const auto error = validateSignBlockStates(
+                    expected.block_identifier, expected.states)) {
+                return {SignApplyStatus::InvalidPatch, *error,
+                        current->revision};
+            }
+
+            const auto write_snapshot = [this, &patch](
+                                            const SignSnapshot &snapshot) {
+                auto public_block = locatePublicBlock(server_, patch.location);
+                if (!public_block)
+                    throw std::runtime_error(
+                        "dimension, chunk, or block unavailable");
+                auto replacement = createRegisteredBlockData(
+                    server_, snapshot.block_identifier, snapshot.states);
+                if (!replacement.type_registered)
+                    throw std::invalid_argument(
+                        "block type is absent from the Endstone block registry");
+                if (!replacement.data)
+                    throw std::invalid_argument(
+                        "Endstone rejected the requested sign block data");
+                public_block->block->setData(*replacement.data, false);
+
+                auto native = locateNativeSignActor(server_, patch.location,
+                                                    &text_bridge_);
+                if (!native.access)
+                    throw std::runtime_error(
+                        "replacement did not expose a compatible native sign actor");
+                text_bridge_.applyText(*native.access->actor, SignSide::Front,
+                                       snapshot.front);
+                text_bridge_.applyText(*native.access->actor, SignSide::Back,
+                                       snapshot.back);
+                text_bridge_.setWaxed(*native.access->actor, snapshot.waxed);
+                text_bridge_.setLockedForEditingBy(
+                    *native.access->actor, snapshot.locked_for_editing_by);
+                text_bridge_.setProfanityFilters(
+                    *native.access->actor,
+                    snapshot.remote_profanity_filter_enabled,
+                    snapshot.local_profanity_filter_enabled);
+                signalActorChanged(*native.access);
+            };
+            const auto rollback = [this, &write_snapshot, &current,
+                                   &patch]() noexcept {
+                try {
+                    write_snapshot(*current);
+                    const auto restored = capture(patch.location);
+                    return restored && samePayload(*restored, *current);
+                } catch (...) {
+                    return false;
+                }
+            };
+
+            try {
+                write_snapshot(expected);
+                const auto updated = capture(patch.location);
+                if (updated && samePayload(*updated, expected)) {
+                    return {
+                        SignApplyStatus::Applied,
+                        "atomically replaced the sign block data and complete native payload",
+                        updated->revision,
+                    };
+                }
+                if (!rollback()) {
+                    return {
+                        SignApplyStatus::RollbackFailed,
+                        "combined structural/native readback failed and rollback could not be verified",
+                        current->revision,
+                    };
+                }
+                return {
+                    SignApplyStatus::AdapterError,
+                    "combined structural/native readback failed; original sign was restored",
+                    current->revision,
+                };
+            } catch (const std::invalid_argument &error) {
+                return {SignApplyStatus::InvalidPatch, error.what(),
+                        current->revision};
+            } catch (const std::exception &error) {
+                if (!rollback()) {
+                    return {
+                        SignApplyStatus::RollbackFailed,
+                        std::string("combined structural/native mutation and rollback failed: ") +
+                            error.what(),
+                        current->revision,
+                    };
+                }
+                return {
+                    SignApplyStatus::AdapterError,
+                    std::string("combined structural/native mutation failed; original sign was restored: ") +
+                        error.what(),
+                    current->revision,
+                };
+            }
+        }
+
+        if (requestsPlainText(patch) || requiresSignNbt(patch)) {
+            if (!patch.send_client_update || !patch.persist) {
+                return {
+                    SignApplyStatus::Unsupported,
+                    "the release adapter supports persistent mutations with client updates",
+                    current->revision,
+                };
+            }
+            auto native = locateNativeSignActor(server_, patch.location, &text_bridge_);
+            if (!native.access) {
+                return {
+                    native.status == SignActorStatus::ChunkUnavailable
+                        ? SignApplyStatus::ChunkUnavailable
+                        : SignApplyStatus::NotASign,
+                    "the target block has no compatible native sign actor",
+                    current->revision,
+                };
+            }
+
+            auto expected = *current;
+            if (patch.front)
+                expected.front = applyTextPatch(expected.front, *patch.front);
+            if (patch.back)
+                expected.back = applyTextPatch(expected.back, *patch.back);
+            if (patch.waxed) expected.waxed = *patch.waxed;
+            if (patch.locked_for_editing_by)
+                expected.locked_for_editing_by = *patch.locked_for_editing_by;
+            if (patch.locked_for_editing_xuid) {
+                if (patch.locked_for_editing_xuid->empty())
+                    expected.locked_for_editing_xuid.reset();
+                else
+                    expected.locked_for_editing_xuid =
+                        *patch.locked_for_editing_xuid;
+            }
+            if (patch.remote_profanity_filter_enabled)
+                expected.remote_profanity_filter_enabled =
+                    *patch.remote_profanity_filter_enabled;
+            if (patch.local_profanity_filter_enabled)
+                expected.local_profanity_filter_enabled =
+                    *patch.local_profanity_filter_enabled;
+
+            if (expected.locked_for_editing_xuid &&
+                !patch.locked_for_editing_by) {
+                bool matched = false;
+                for (auto *online : server_.getOnlinePlayers()) {
+                    if (!online || online->getXuid() != *expected.locked_for_editing_xuid)
+                        continue;
+                    auto &handle =
+                        static_cast<endstone::core::EndstonePlayer &>(*online).getHandle();
+                    expected.locked_for_editing_by =
+                        handle.getOrCreateUniqueID().raw_id;
+                    matched = true;
+                    break;
+                }
+                if (!matched) {
+                    return {
+                        SignApplyStatus::InvalidPatch,
+                        "locked_for_editing_xuid must identify an online player when no "
+                        "native actor ID is supplied",
+                        current->revision,
+                    };
+                }
+            }
+
+            const auto apply_snapshot = [this, &native](const SignSnapshot &snapshot) {
+                text_bridge_.applyText(*native.access->actor, SignSide::Front,
+                                       snapshot.front);
+                text_bridge_.applyText(*native.access->actor, SignSide::Back,
+                                       snapshot.back);
+                text_bridge_.setWaxed(*native.access->actor, snapshot.waxed);
+                text_bridge_.setLockedForEditingBy(
+                    *native.access->actor, snapshot.locked_for_editing_by);
+                text_bridge_.setProfanityFilters(
+                    *native.access->actor,
+                    snapshot.remote_profanity_filter_enabled,
+                    snapshot.local_profanity_filter_enabled);
+                signalActorChanged(*native.access);
+            };
+            try {
+                apply_snapshot(expected);
+                auto updated = capture(patch.location);
+                if (updated && updated->front.lines == expected.front.lines &&
+                    updated->front.filtered_message == expected.front.filtered_message &&
+                    updated->front.text_object == expected.front.text_object &&
+                    updated->front.message_is_text_object == expected.front.message_is_text_object &&
+                    updated->front.argb == expected.front.argb &&
+                    updated->front.glowing == expected.front.glowing &&
+                    updated->front.hide_glow_outline == expected.front.hide_glow_outline &&
+                    updated->front.persist_formatting == expected.front.persist_formatting &&
+                    updated->front.owner_xuid == expected.front.owner_xuid &&
+                    updated->back.lines == expected.back.lines &&
+                    updated->back.filtered_message == expected.back.filtered_message &&
+                    updated->back.text_object == expected.back.text_object &&
+                    updated->back.message_is_text_object == expected.back.message_is_text_object &&
+                    updated->back.argb == expected.back.argb &&
+                    updated->back.glowing == expected.back.glowing &&
+                    updated->back.hide_glow_outline == expected.back.hide_glow_outline &&
+                    updated->back.persist_formatting == expected.back.persist_formatting &&
+                    updated->back.owner_xuid == expected.back.owner_xuid &&
+                    updated->waxed == expected.waxed &&
+                    updated->locked_for_editing_by == expected.locked_for_editing_by &&
+                    updated->remote_profanity_filter_enabled ==
+                        expected.remote_profanity_filter_enabled &&
+                    updated->local_profanity_filter_enabled ==
+                        expected.local_profanity_filter_enabled) {
+                    return {
+                        SignApplyStatus::Applied,
+                        "applied and read back the complete native sign payload",
+                        updated->revision,
+                    };
+                }
+                apply_snapshot(*current);
+                return {
+                    SignApplyStatus::RollbackFailed,
+                    "native sign readback differed from the request; rollback was attempted",
+                    current->revision,
+                };
+            } catch (const std::exception &error) {
+                try {
+                    apply_snapshot(*current);
+                } catch (...) {
+                    return {
+                        SignApplyStatus::RollbackFailed,
+                        std::string("native sign mutation and rollback failed: ") + error.what(),
+                        current->revision,
+                    };
+                }
+                return {
+                    SignApplyStatus::AdapterError,
+                    std::string("native sign mutation failed and was rolled back: ") +
+                        error.what(),
+                    current->revision,
+                };
+            }
+        }
+#else
         if (requiresSignNbt(patch))
             return nbtUnsupported(current->revision);
+#endif
         if (!patch.send_client_update) {
             return {
                 SignApplyStatus::Unsupported,
@@ -1083,8 +1665,10 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 0,
             };
         }
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (requiresSignNbt(request))
             return nbtUnsupported(0);
+#endif
         if (!request.send_client_update) {
             return {
                 SignApplyStatus::Unsupported,
@@ -1099,6 +1683,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 0,
             };
         }
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (force || request.replace_policy == SignReplacePolicy::Force) {
             return {
                 SignApplyStatus::Unsupported,
@@ -1160,13 +1745,40 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
             }
             access->block->setData(*replacement.data, false);
 
-            const auto rollback = [&access]() noexcept {
+            const auto rollback = [this, &access, &before_sign, &request]() noexcept {
                 try {
                     access->block->setData(*access->data, false);
                     auto restored = access->block->getData();
-                    return restored && restored->getType() == access->data->getType() &&
-                           fromEndstoneStates(restored->getBlockStates()) ==
-                               fromEndstoneStates(access->data->getBlockStates());
+                    const bool structural_match =
+                        restored && restored->getType() == access->data->getType() &&
+                        fromEndstoneStates(restored->getBlockStates()) ==
+                            fromEndstoneStates(access->data->getBlockStates());
+                    if (!structural_match) return false;
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                    if (before_sign) {
+                        auto native = locateNativeSignActor(
+                            server_, request.location, &text_bridge_);
+                        if (!native.access) return false;
+                        text_bridge_.applyText(*native.access->actor, SignSide::Front,
+                                               before_sign->front);
+                        text_bridge_.applyText(*native.access->actor, SignSide::Back,
+                                               before_sign->back);
+                        text_bridge_.setWaxed(*native.access->actor,
+                                              before_sign->waxed);
+                        text_bridge_.setLockedForEditingBy(
+                            *native.access->actor,
+                            before_sign->locked_for_editing_by);
+                        text_bridge_.setProfanityFilters(
+                            *native.access->actor,
+                            before_sign->remote_profanity_filter_enabled,
+                            before_sign->local_profanity_filter_enabled);
+                        signalActorChanged(*native.access);
+                        const auto verified = capture(request.location);
+                        return verified &&
+                               verified->revision == before_sign->revision;
+                    }
+#endif
+                    return true;
                 } catch (...) {
                     return false;
                 }
@@ -1197,6 +1809,34 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                         "sign block was placed but its vanilla sign actor was not "
                         "available");
                 }
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                text_bridge_.applyText(*native.access->actor, SignSide::Front,
+                                       request.front);
+                text_bridge_.applyText(*native.access->actor, SignSide::Back,
+                                       request.back);
+                text_bridge_.setWaxed(*native.access->actor, request.waxed);
+                auto lock_id = request.locked_for_editing_by;
+                if (request.locked_for_editing_xuid && lock_id < 0) {
+                    for (auto *online : server_.getOnlinePlayers()) {
+                        if (!online ||
+                            online->getXuid() != *request.locked_for_editing_xuid)
+                            continue;
+                        auto &handle = static_cast<endstone::core::EndstonePlayer &>(
+                                           *online).getHandle();
+                        lock_id = handle.getOrCreateUniqueID().raw_id;
+                        break;
+                    }
+                    if (lock_id < 0) {
+                        return fail_after_write(
+                            "locked_for_editing_xuid did not identify an online player");
+                    }
+                }
+                text_bridge_.setLockedForEditingBy(*native.access->actor, lock_id);
+                text_bridge_.setProfanityFilters(
+                    *native.access->actor,
+                    request.remote_profanity_filter_enabled,
+                    request.local_profanity_filter_enabled);
+#endif
                 signalActorChanged(*native.access);
                 auto updated = capture(request.location);
                 if (!updated) {
@@ -1210,14 +1850,45 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                                actual->second == entry.second;
                     });
                 if (updated->block_identifier != request.block_identifier ||
-                    !states_match) {
+                    !states_match
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                    || updated->front.lines != request.front.lines ||
+                    updated->front.filtered_message != request.front.filtered_message ||
+                    updated->front.text_object != request.front.text_object ||
+                    updated->front.message_is_text_object != request.front.message_is_text_object ||
+                    updated->front.argb != request.front.argb ||
+                    updated->front.glowing != request.front.glowing ||
+                    updated->front.hide_glow_outline != request.front.hide_glow_outline ||
+                    updated->front.persist_formatting != request.front.persist_formatting ||
+                    updated->front.owner_xuid != request.front.owner_xuid ||
+                    updated->back.lines != request.back.lines ||
+                    updated->back.filtered_message != request.back.filtered_message ||
+                    updated->back.text_object != request.back.text_object ||
+                    updated->back.message_is_text_object != request.back.message_is_text_object ||
+                    updated->back.argb != request.back.argb ||
+                    updated->back.glowing != request.back.glowing ||
+                    updated->back.hide_glow_outline != request.back.hide_glow_outline ||
+                    updated->back.persist_formatting != request.back.persist_formatting ||
+                    updated->back.owner_xuid != request.back.owner_xuid ||
+                    updated->waxed != request.waxed ||
+                    updated->locked_for_editing_by != lock_id ||
+                    updated->remote_profanity_filter_enabled !=
+                        request.remote_profanity_filter_enabled ||
+                    updated->local_profanity_filter_enabled !=
+                        request.local_profanity_filter_enabled
+#endif
+                ) {
                     return fail_after_write(
                         "sign block was placed but identifier/state readback did not "
                         "match the request");
                 }
                 return {
                     SignApplyStatus::Applied,
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                    "placed and read back a complete native sign payload",
+#else
                     "placed a blank sign through the Endstone v0.11.6 block boundary",
+#endif
                     updated->revision,
                 };
             } catch (const std::exception &error) {
@@ -1250,6 +1921,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         auto current = capture(request.location);
         if (!current)
             return {SignApplyStatus::NotASign, "sign not found", 0};
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (force || !request.expected_revision || *request.expected_revision == 0) {
             return {
                 SignApplyStatus::Unsupported,
@@ -1257,7 +1929,9 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
-        if (*request.expected_revision != current->revision) {
+#endif
+        if (!force && request.expected_revision &&
+            *request.expected_revision != current->revision) {
             return {
                 SignApplyStatus::Conflict,
                 "sign revision changed",
@@ -1321,6 +1995,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 false,
             };
         }
+#endif
         struct TransactionLedger {
             SignOperation operation;
             std::optional<SignSnapshot> before;
@@ -1384,6 +2059,20 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                     locateNativeSignActor(server_, snapshot.location, &text_bridge_);
                 if (native.access) {
                     if (text_bridge_.ready()) {
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                        text_bridge_.applyText(*native.access->actor, SignSide::Front,
+                                               snapshot.front);
+                        text_bridge_.applyText(*native.access->actor, SignSide::Back,
+                                               snapshot.back);
+                        text_bridge_.setWaxed(*native.access->actor, snapshot.waxed);
+                        text_bridge_.setLockedForEditingBy(
+                            *native.access->actor,
+                            snapshot.locked_for_editing_by);
+                        text_bridge_.setProfanityFilters(
+                            *native.access->actor,
+                            snapshot.remote_profanity_filter_enabled,
+                            snapshot.local_profanity_filter_enabled);
+#else
                         try {
                             const auto before_front = flattenSignLines(snapshot.front.lines);
                             if (snapshot.front.owner_xuid.size() <=
@@ -1398,6 +2087,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                             // If restoring the optional text payload fails, continue with
                             // structural restoration only.
                         }
+#endif
                         try {
                             const auto before_back = flattenSignLines(snapshot.back.lines);
                             if (snapshot.back.owner_xuid.size() <=
@@ -1508,6 +2198,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
+#if !ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
         if (request.acquire_lock) {
             return {
                 SignApplyStatus::Unsupported,
@@ -1525,6 +2216,7 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
+#endif
         if (player.getDimension().getName() != request.location.dimension) {
             return {
                 SignApplyStatus::PermissionDenied,
@@ -1544,12 +2236,26 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
 
         try {
             auto &native_player = static_cast<endstone::core::EndstonePlayer &>(player).getHandle();
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+            if (request.acquire_lock) {
+                text_bridge_.setLockedForEditingBy(
+                    *native_actor.access->actor,
+                    native_player.getOrCreateUniqueID().raw_id);
+                signalActorChanged(*native_actor.access);
+            }
+#endif
             const ::BlockPos position(request.location.x, request.location.y, request.location.z);
             native_player.openSign(position, request.side == SignSide::Front);
             return {
                 SignApplyStatus::Applied,
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+                request.acquire_lock
+                    ? "acquired the native editor lock and opened the requested sign side"
+                    : "opened the requested sign side without changing its editor lock",
+#else
                 "sent the pinned Player::openSign UI request without claiming an "
                 "editor lock",
+#endif
                 current->revision,
             };
         } catch (const std::exception &error) {
@@ -1562,6 +2268,293 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
     }
 
   private:
+#if ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION
+    using UpdateTextFromClient =
+        void (*)(BlockActor *, const CompoundTag *, const BlockSource *);
+
+    struct ReentryGuard {
+        explicit ReentryGuard(bool &active) : active_(active) { active_ = true; }
+        ~ReentryGuard() { active_ = false; }
+        bool &active_;
+    };
+
+    [[nodiscard]] std::optional<SignLocation> locationFor(
+        const BlockActor &actor, const BlockSource &source) const {
+        auto *level = server_.getLevel();
+        if (!level)
+            return std::nullopt;
+
+        std::array<std::int32_t, 3> coordinates{};
+        constexpr std::size_t BlockPositionOffset = 0x8;
+        std::memcpy(coordinates.data(),
+                    reinterpret_cast<const std::byte *>(&actor) +
+                        BlockPositionOffset,
+                    sizeof(coordinates));
+        for (auto *dimension : level->getDimensions()) {
+            if (!dimension)
+                continue;
+            auto *exact_dimension =
+                static_cast<endstone::core::EndstoneDimension *>(dimension);
+            auto &candidate_source =
+                exact_dimension->getHandle().getBlockSourceFromMainChunkSource();
+            if (std::addressof(candidate_source) == std::addressof(source)) {
+                return SignLocation{dimension->getName(), coordinates[0],
+                                    coordinates[1], coordinates[2]};
+            }
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] std::optional<SignActorContext> playerContext(
+        const BlockActor &actor) const {
+        const auto locked_id = text_bridge_.lockedForEditingBy(actor);
+        if (locked_id < 0)
+            return std::nullopt;
+        for (auto *online : server_.getOnlinePlayers()) {
+            if (!online)
+                continue;
+            auto &handle = static_cast<endstone::core::EndstonePlayer &>(*online)
+                               .getHandle();
+            if (handle.getOrCreateUniqueID().raw_id != locked_id)
+                continue;
+            SignActorContext context;
+            context.origin = SignMutationOrigin::Player;
+            context.actor_name = online->getName();
+            context.actor_xuid = online->getXuid();
+            return context;
+        }
+        return std::nullopt;
+    }
+
+    [[nodiscard]] static bool sameTextExceptOwner(const SignText &left,
+                                                  const SignText &right) {
+        return left.lines == right.lines &&
+               left.filtered_message == right.filtered_message &&
+               left.text_object == right.text_object &&
+               left.message_is_text_object == right.message_is_text_object &&
+               left.argb == right.argb && left.glowing == right.glowing &&
+               left.hide_glow_outline == right.hide_glow_outline &&
+               left.persist_formatting == right.persist_formatting;
+    }
+
+    [[nodiscard]] static bool sameText(const SignText &left,
+                                       const SignText &right) {
+        return sameTextExceptOwner(left, right) &&
+               left.owner_xuid == right.owner_xuid;
+    }
+
+    [[nodiscard]] static bool samePayload(const SignSnapshot &left,
+                                          const SignSnapshot &right) {
+        return left.block_identifier == right.block_identifier &&
+               left.states == right.states && sameText(left.front, right.front) &&
+               sameText(left.back, right.back) && left.waxed == right.waxed &&
+               left.locked_for_editing_by == right.locked_for_editing_by &&
+               left.locked_for_editing_xuid == right.locked_for_editing_xuid &&
+               left.remote_profanity_filter_enabled ==
+                   right.remote_profanity_filter_enabled &&
+               left.local_profanity_filter_enabled ==
+                   right.local_profanity_filter_enabled;
+    }
+
+    void restoreText(BlockActor &actor, const SignSnapshot &snapshot) const {
+        text_bridge_.applyText(actor, SignSide::Front, snapshot.front);
+        text_bridge_.applyText(actor, SignSide::Back, snapshot.back);
+        text_bridge_.setLockedForEditingBy(actor,
+                                          snapshot.locked_for_editing_by);
+        text_bridge_.setProfanityFilters(
+            actor, snapshot.remote_profanity_filter_enabled,
+            snapshot.local_profanity_filter_enabled);
+    }
+
+    void handlePlayerEdit(BlockActor &actor, const CompoundTag &payload,
+                          const BlockSource &source) {
+        static thread_local bool handling_player_edit = false;
+        if (!update_text_original_)
+            return;
+        if (handling_player_edit) {
+            update_text_original_(std::addressof(actor), std::addressof(payload),
+                                  std::addressof(source));
+            return;
+        }
+        ReentryGuard guard(handling_player_edit);
+
+        const auto bus = event_bus_.lock();
+        const auto location = locationFor(actor, source);
+        const auto player = playerContext(actor);
+        const bool has_front = payload.getCompound("FrontText") != nullptr;
+        const bool has_back = payload.getCompound("BackText") != nullptr;
+        if (!bus || !location || !player || (!has_front && !has_back)) {
+            update_text_original_(std::addressof(actor), std::addressof(payload),
+                                  std::addressof(source));
+            return;
+        }
+
+        const auto before = capture(*location);
+        if (!before) {
+            update_text_original_(std::addressof(actor), std::addressof(payload),
+                                  std::addressof(source));
+            return;
+        }
+
+        std::optional<SignSnapshot> candidate;
+        try {
+            text_bridge_.applyClientPayload(actor, payload);
+            candidate = capture(*location);
+            if (!candidate) {
+                restoreText(actor, *before);
+                update_text_original_(std::addressof(actor),
+                                      std::addressof(payload),
+                                      std::addressof(source));
+                return;
+            }
+
+            const bool front_changed =
+                has_front && !sameTextExceptOwner(candidate->front, before->front);
+            const bool back_changed =
+                has_back && !sameTextExceptOwner(candidate->back, before->back);
+            if (front_changed)
+                text_bridge_.setOwnerXuid(actor, SignSide::Front,
+                                          player->actor_xuid);
+            if (back_changed)
+                text_bridge_.setOwnerXuid(actor, SignSide::Back,
+                                          player->actor_xuid);
+            candidate = capture(*location);
+            restoreText(actor, *before);
+
+            if (!candidate || (!front_changed && !back_changed)) {
+                update_text_original_(std::addressof(actor),
+                                      std::addressof(payload),
+                                      std::addressof(source));
+                return;
+            }
+            candidate->locked_for_editing_by = -1;
+            candidate->locked_for_editing_xuid.reset();
+            candidate->revision = calculateSignRevision(*candidate);
+        } catch (...) {
+            try {
+                restoreText(actor, *before);
+            } catch (...) {
+            }
+            update_text_original_(std::addressof(actor), std::addressof(payload),
+                                  std::addressof(source));
+            return;
+        }
+
+        SignEvent received{SignEventKind::PlayerEditReceived,
+                           *location,
+                           *player,
+                           before,
+                           candidate,
+                           true,
+                           false,
+                           {}};
+        try {
+            bus->publish(received);
+        } catch (...) {
+            update_text_original_(std::addressof(actor), std::addressof(payload),
+                                  std::addressof(source));
+            return;
+        }
+        if (received.cancelled) {
+            text_bridge_.setLockedForEditingBy(actor, -1);
+            auto current = locateNativeSignActor(server_, *location, &text_bridge_);
+            if (current.access)
+                signalActorChanged(*current.access);
+            return;
+        }
+
+        update_text_original_(std::addressof(actor), std::addressof(payload),
+                              std::addressof(source));
+        const auto after = capture(*location);
+        SignEvent changed{SignEventKind::AfterChange,
+                          *location,
+                          *player,
+                          before,
+                          after,
+                          false,
+                          false,
+                          {}};
+        try {
+            bus->publish(changed);
+        } catch (...) {
+        }
+    }
+
+    static void updateTextFromClientHook(BlockActor *actor,
+                                         const CompoundTag *payload,
+                                         const BlockSource *source) {
+        auto *owner = hook_owner_;
+        if (!owner || !owner->update_text_original_ || !actor || !payload ||
+            !source)
+            return;
+        owner->handlePlayerEdit(*actor, *payload, *source);
+    }
+
+    void installPlayerEditHook() {
+#if defined(__linux__) && defined(__x86_64__)
+        if (!exact_runtime_ || !text_bridge_.ready()) {
+            hook_failure_ = "native text bridge is not ready";
+            return;
+        }
+        if (hook_owner_) {
+            hook_failure_ = "another Sign adapter already owns the player-edit hook";
+            return;
+        }
+        hook_ = funchook_create();
+        if (!hook_) {
+            hook_failure_ = "funchook_create failed";
+            return;
+        }
+        void *target = reinterpret_cast<void *>(
+            text_bridge_.updateTextFromClientAddress());
+        const auto prepared = funchook_prepare(
+            hook_, &target,
+            reinterpret_cast<void *>(&ExperimentalBds2630SignAdapter::
+                                          updateTextFromClientHook));
+        if (prepared != FUNCHOOK_ERROR_SUCCESS) {
+            hook_failure_ = funchook_error_message(hook_);
+            funchook_destroy(hook_);
+            hook_ = nullptr;
+            return;
+        }
+        update_text_original_ = reinterpret_cast<UpdateTextFromClient>(target);
+        hook_owner_ = this;
+        const auto installed = funchook_install(hook_, 0);
+        if (installed != FUNCHOOK_ERROR_SUCCESS) {
+            hook_failure_ = funchook_error_message(hook_);
+            hook_owner_ = nullptr;
+            update_text_original_ = nullptr;
+            funchook_destroy(hook_);
+            hook_ = nullptr;
+            return;
+        }
+        hook_installed_ = true;
+        hook_failure_.clear();
+#else
+        hook_failure_ = "player-edit hook is available only on Linux x64";
+#endif
+    }
+
+    void uninstallPlayerEditHook() noexcept {
+        if (hook_owner_ == this)
+            hook_owner_ = nullptr;
+        if (hook_) {
+            if (hook_installed_)
+                (void)funchook_uninstall(hook_, 0);
+            (void)funchook_destroy(hook_);
+        }
+        hook_ = nullptr;
+        update_text_original_ = nullptr;
+        hook_installed_ = false;
+    }
+
+    static inline ExperimentalBds2630SignAdapter *hook_owner_{};
+    std::weak_ptr<SignEventBus> event_bus_;
+    funchook_t *hook_{};
+    UpdateTextFromClient update_text_original_{};
+    bool hook_installed_{};
+    std::string hook_failure_;
+#endif
     endstone::Server &server_;
     bool exact_runtime_{};
     ExperimentalLinuxTextBridge text_bridge_;

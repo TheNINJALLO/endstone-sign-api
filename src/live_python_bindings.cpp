@@ -12,11 +12,16 @@
 #include <limits>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
 
 namespace py = pybind11;
+
+#ifndef ENDSTONE_SIGN_VERSION
+#define ENDSTONE_SIGN_VERSION "0.2.0"
+#endif
 
 namespace endstone_sign {
 namespace {
@@ -412,6 +417,101 @@ py::dict probeAtomicRejection(
     return out;
 }
 
+std::string_view eventKindName(const SignEventKind kind) noexcept {
+    switch (kind) {
+    case SignEventKind::BeforePlace: return "before_place";
+    case SignEventKind::AfterPlace: return "after_place";
+    case SignEventKind::BeforeChange: return "before_change";
+    case SignEventKind::AfterChange: return "after_change";
+    case SignEventKind::BeforeRemove: return "before_remove";
+    case SignEventKind::AfterRemove: return "after_remove";
+    case SignEventKind::BeforeOpenEditor: return "before_open_editor";
+    case SignEventKind::AfterOpenEditor: return "after_open_editor";
+    case SignEventKind::BeforeLock: return "before_lock";
+    case SignEventKind::AfterLock: return "after_lock";
+    case SignEventKind::BeforeUnlock: return "before_unlock";
+    case SignEventKind::AfterUnlock: return "after_unlock";
+    case SignEventKind::PlayerEditReceived: return "player_edit_received";
+    }
+    return "before_change";
+}
+
+std::string_view mutationOriginName(const SignMutationOrigin origin) noexcept {
+    switch (origin) {
+    case SignMutationOrigin::Api: return "api";
+    case SignMutationOrigin::Player: return "player";
+    case SignMutationOrigin::Command: return "command";
+    case SignMutationOrigin::Structure: return "structure";
+    case SignMutationOrigin::WorldLoad: return "world_load";
+    case SignMutationOrigin::Unknown: return "unknown";
+    }
+    return "unknown";
+}
+
+py::dict eventToDict(const SignEvent &event) {
+    py::dict out;
+    out["kind"] = eventKindName(event.kind);
+    out["location"] = py::make_tuple(
+        event.location.dimension, event.location.x, event.location.y,
+        event.location.z);
+    py::dict actor;
+    actor["origin"] = mutationOriginName(event.actor.origin);
+    actor["name"] = event.actor.actor_name;
+    actor["xuid"] = event.actor.actor_xuid;
+    actor["plugin_name"] = event.actor.plugin_name;
+    out["actor"] = std::move(actor);
+    if (event.before)
+        out["before"] = snapshotToDict(*event.before);
+    else
+        out["before"] = py::none();
+    if (event.after)
+        out["after"] = snapshotToDict(*event.after);
+    else
+        out["after"] = py::none();
+    out["cancellable"] = event.cancellable;
+    out["cancelled"] = event.cancelled;
+    out["cancellation_reason"] = event.cancellation_reason;
+    return out;
+}
+
+std::size_t addEventListener(endstone::Server &server, py::function callback) {
+    const auto service = loadService(server);
+    if (!service)
+        throw std::runtime_error("endstone:sign:v2 service is unavailable");
+    auto retained = std::make_shared<py::function>(std::move(callback));
+    return service->addEventListener([retained](SignEvent &event) {
+        py::gil_scoped_acquire gil;
+        auto payload = eventToDict(event);
+        const py::object response = (*retained)(payload);
+        if (!event.cancellable)
+            return;
+
+        bool cancelled = payload["cancelled"].cast<bool>();
+        std::string reason = payload["cancellation_reason"].cast<std::string>();
+        if (py::isinstance<py::bool_>(response)) {
+            cancelled = response.cast<bool>();
+        } else if (py::isinstance<py::str>(response)) {
+            cancelled = true;
+            reason = response.cast<std::string>();
+        } else if (py::isinstance<py::dict>(response)) {
+            const auto decision = response.cast<py::dict>();
+            if (decision.contains("cancelled"))
+                cancelled = decision["cancelled"].cast<bool>();
+            if (decision.contains("reason"))
+                reason = decision["reason"].cast<std::string>();
+        }
+        event.cancelled = cancelled;
+        if (cancelled)
+            event.cancellation_reason = std::move(reason);
+    });
+}
+
+bool removeEventListener(endstone::Server &server,
+                         const std::size_t listener_id) {
+    const auto service = loadService(server);
+    return service && service->removeEventListener(listener_id);
+}
+
 py::dict probeApiEventCancellation(
     endstone::Server &server, const std::string &dimension, std::int32_t x,
     std::int32_t y, std::int32_t z,
@@ -453,10 +553,14 @@ py::dict openEditor(endstone::Server &server, endstone::Player &player,
 } // namespace endstone_sign
 
 PYBIND11_MODULE(_endstone_sign_live, module) {
-    module.doc() = "Experimental live bridge to endstone:sign:v2";
-    module.attr("__version__") = "0.2.0a9";
+    module.doc() = "Live Python bridge to endstone:sign:v2";
+    module.attr("__version__") = ENDSTONE_SIGN_VERSION;
     module.def("available", &endstone_sign::available, py::arg("server"));
     module.def("status", &endstone_sign::status, py::arg("server"));
+    module.def("add_event_listener", &endstone_sign::addEventListener,
+               py::arg("server"), py::arg("callback"));
+    module.def("remove_event_listener", &endstone_sign::removeEventListener,
+               py::arg("server"), py::arg("listener_id"));
     module.def("capture", &endstone_sign::capture, py::arg("server"),
                py::arg("dimension"), py::arg("x"), py::arg("y"), py::arg("z"));
     module.def("set_text", &endstone_sign::setText, py::arg("server"),

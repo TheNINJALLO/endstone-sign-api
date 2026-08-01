@@ -27,6 +27,8 @@ public:
     virtual SignApplyResult openEditor(
         endstone::Player &player,
         const SignOpenEditorRequest &request) = 0;
+    virtual std::size_t addEventListener(SignEventListener listener) = 0;
+    virtual bool removeEventListener(std::size_t listener_id) = 0;
     [[nodiscard]] virtual SignCapabilities capabilities() const noexcept = 0;
     [[nodiscard]] virtual std::string adapterName() const = 0;
 };
@@ -61,6 +63,12 @@ public:
         endstone::Player &player,
         const SignOpenEditorRequest &request) override {
         return service_->openEditor(player, request);
+    }
+    std::size_t addEventListener(SignEventListener listener) override {
+        return service_->eventBus()->addListener(std::move(listener));
+    }
+    bool removeEventListener(const std::size_t listener_id) override {
+        return service_->eventBus()->removeListener(listener_id);
     }
     [[nodiscard]] SignCapabilities capabilities() const noexcept override {
         return service_->capabilities();

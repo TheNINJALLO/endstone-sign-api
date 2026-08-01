@@ -35,8 +35,15 @@ if (
     failures.append("experimental structural mutation hash gates are missing")
 if "ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE" not in cmake:
     failures.append("verified native bridge option is missing")
-if (ROOT / "src/verified_bds_26_30_adapter.cpp").exists():
-    failures.append("unverified native bridge source is present")
+verified_path = ROOT / "src/verified_bds_26_30_adapter.cpp"
+if verified_path.exists():
+    verified = verified_path.read_text(encoding="utf-8")
+    if (
+        "#define ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION 1" not in verified
+        or '#include "experimental_bds_26_30_adapter.cpp"' not in verified
+        or "makeVerifiedBds2630SignAdapter" not in verified
+    ):
+        failures.append("verified native bridge wrapper is not the guarded implementation")
 if failures:
     raise SystemExit("fail-closed verification failed:\n- " + "\n- ".join(failures))
 print("native Sign API boundary is fail-closed")

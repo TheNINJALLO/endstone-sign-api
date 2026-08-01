@@ -171,7 +171,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             message(FATAL_ERROR
                 "A verified release bridge requires a manifest with status=verified")
         endif()
-        if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+        if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+           ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
             set(ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR
                 "${CMAKE_CURRENT_BINARY_DIR}/generated/endstone_sign/internal")
             file(MAKE_DIRECTORY "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}")
@@ -315,7 +316,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ${endstone_BINARY_DIR}/include
         ${endstone_BINARY_DIR}/include/generated
     )
-    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+       ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
         target_sources(sign_api PRIVATE
             "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}/experimental_runtime_identity.h")
         target_include_directories(sign_api PRIVATE
@@ -325,6 +327,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
         ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE}>
+        ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_BDS_BUILD="${ENDSTONE_BDS_BUILD}"
         ENDSTONE_SIGN_BDS_PACKAGE="${ENDSTONE_BDS_PACKAGE}"
         ENDSTONE_SIGN_ENDSTONE_VERSION="${ENDSTONE_EXACT_VERSION}"
@@ -385,6 +388,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
             VISIBILITY_INLINES_HIDDEN ON
         )
         target_compile_features(_endstone_sign_live PRIVATE cxx_std_20)
+        target_compile_definitions(_endstone_sign_live PRIVATE
+            ENDSTONE_SIGN_VERSION="${ENDSTONE_SIGN_RELEASE_VERSION}")
         target_include_directories(_endstone_sign_live PRIVATE
             include
             ${endstone_SOURCE_DIR}/include

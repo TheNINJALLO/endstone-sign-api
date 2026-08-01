@@ -24,7 +24,7 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         self.assertIn("Calling get with an absent ID would", helper)
         self.assertEqual(source.count("server.createBlockData("), 1)
         self.assertNotIn("server_.createBlockData(", source)
-        self.assertEqual(source.count("createRegisteredBlockData("), 4)
+        self.assertEqual(source.count("createRegisteredBlockData("), 5)
 
     def test_indirect_air_descriptor_path_is_exact_and_tester_preflighted(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")
@@ -44,10 +44,10 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
     def test_missing_registry_entry_is_returned_as_an_invalid_patch(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")
 
-        self.assertEqual(source.count("if (!replacement.type_registered)"), 3)
+        self.assertEqual(source.count("if (!replacement.type_registered)"), 4)
         self.assertEqual(
             source.count("block type is absent from the Endstone block registry"),
-            2,
+            3,
         )
 
     def test_transaction_restore_keeps_native_actor_access_mutable(self) -> None:

@@ -12,6 +12,8 @@ class Player;
 
 namespace endstone_sign {
 
+class SignEventBus;
+
 class ISignAdapter {
 public:
     virtual ~ISignAdapter() = default;
@@ -25,6 +27,7 @@ public:
     virtual SignApplyResult openEditor(
         endstone::Player &player,
         const SignOpenEditorRequest &request) = 0;
+    virtual void bindEventBus(std::shared_ptr<SignEventBus>) {}
 };
 
 } // namespace endstone_sign

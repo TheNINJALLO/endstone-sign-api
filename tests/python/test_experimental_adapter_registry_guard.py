@@ -100,6 +100,38 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
             bindings,
         )
 
+    def test_stable_linux_mode_excludes_failed_advanced_capabilities(self) -> None:
+        cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
+        adapter = ADAPTER_SOURCE.read_text(encoding="utf-8")
+        plugin = (ROOT / "src" / "plugin.cpp").read_text(encoding="utf-8")
+
+        self.assertIn("ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE", cmake)
+        self.assertIn(
+            "-DENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=ON",
+            (ROOT / "scripts" / "build_exact.py").read_text(encoding="utf-8"),
+        )
+        for field in (
+            "text_objects",
+            "text_color",
+            "glowing",
+            "waxed",
+            "editor_lock",
+            "open_editor",
+            "player_edit_events",
+            "restart_persistence",
+        ):
+            self.assertIn(f"result.{field} = false;", adapter)
+        self.assertIn(
+            "v0.2.0 does not support text objects, color, glow, wax, or editor locks",
+            adapter,
+        )
+        self.assertIn(
+            "ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION && "
+            "!ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE",
+            adapter,
+        )
+        self.assertIn("caps.supportedRelease()", plugin)
+
 
 if __name__ == "__main__":
     unittest.main()

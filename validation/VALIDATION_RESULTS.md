@@ -1,35 +1,32 @@
 # Endstone Sign API validation results
 
-Release: `0.2.0-alpha.9`
+Release: `0.2.0`
 Service ABI: `endstone:sign:v2`  
-Validation date: `2026-07-31`
+Validation date: `2026-08-01`
 
 ## Result
 
-The portable C++20 and Python API layers pass local validation. The alpha.9
-source contains an exact-gated Linux plain-text/structural matrix probe
-candidate; the complete native bridge remains disabled because the remaining
-symbol/ABI proof, player-edit hook, reviewed bridge, and disposable-world
-probes are incomplete.
+The portable C++20 and Python layers pass local validation. The stable Linux
+native build is exact-gated to BDS `1.26.33.1` and Endstone `0.11.6`. Its
+supported tier covers capture, placement/removal, front/back and per-line text,
+filtered text, owner XUID, outline/formatting flags, API edit events,
+replacement, clone, move, and atomic rollback.
 
-Alpha.9 carries forward the strict qualification path introduced in alpha.7
-and hardened in alpha.8, then exposes the implemented exact-gated replacement,
-clone, move, and transactional rollback paths to that runner. It cannot become
-green from the earlier supported-scope matrix alone: the derived verdict
-requires all 48 cases, all 31 probes, every pre-stage native capability, zero
-skipped/failed steps, exact report identity agreement, and ownership-aware
-cleanup without a conflict. The validator is covered by positive,
-evidence-contract, and closed-capability regression tests. The remaining
-closed native layers remain expected qualification blockers.
-Seven client/player/reconnect/restart probes remain operator-attested; the
-validator binds their report to exact run and artifact hashes but does not
-independently observe the client actions.
+The v0.2.0 evidence found one stale tester preflight—the release adapter reports
+the valid actor state `captured`, while the alpha tester accepted only
+`experimental_text_captured`—plus genuine failures in text objects and editor
+lock/unlock. The stale preflight is fixed. The failed and uncompleted advanced
+surfaces are explicitly false capabilities in the stable adapter, so they
+cannot be invoked accidentally or counted toward `supportedRelease()`.
 
-Alpha.9 preserves the hardened activation boundary. A verified manifest must
-reference SHA-256-bound stage and matrix reports; the verifier parses their
-31-probe evidence and binds platform, executable, artifacts, run,
-configuration, world, target, coverage, and the successful qualification
-verdict. Duplicated manifest booleans alone can no longer open the gate.
+The stable tier still enforces exact executable identity, native
+function/vtable/ABI fingerprints, primary-thread access, optimistic revisions,
+native readback, client updates, and rollback. `completeControl()` remains
+false. The strict 31-probe acceptance path remains as an optional development
+gate for future capabilities.
+
+The historical qualification notes below document how the supported native
+scope and safety checks were established.
 
 The returned alpha.4 Linux evidence verified the canonical plugin discovery,
 exact executable identity, short unfiltered front/back text, client-visible
@@ -150,7 +147,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 The following are intentionally unresolved and are required before a verified
 complete-control live plugin may be built:
 
-1. Run the alpha.9 `/signprobe accept` workflow on both platforms and archive
+1. Run the optional `/signprobe accept` complete-control workflow on Linux and archive
    each `latest-matrix-report.json` together with the
    server log and post-test world-backup hashes.
 2. Locate and behavior-confirm the remaining required symbols independently on

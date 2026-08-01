@@ -159,6 +159,17 @@ struct SignCapabilities {
     bool symbols_validated{};
     bool stage_probe_passed{};
 
+    // Stable v0.2.0 consumers can require this narrower, exact-build contract.
+    // Optional fields remain individually queryable and false until their live
+    // probes are repaired and accepted.
+    [[nodiscard]] constexpr bool supportedRelease() const noexcept {
+        return capture && place && remove && replace && clone && move && atomic_transactions &&
+               read_text && write_text && front_and_back && per_line_write && filtered_text &&
+               owner_xuid && hide_glow_outline && persist_formatting && api_edit_events &&
+               client_updates && exact_build_match && exact_binary_hash_match &&
+               symbols_validated;
+    }
+
     [[nodiscard]] constexpr bool completeControl() const noexcept {
         return capture && place && remove && replace && clone && move && atomic_transactions &&
                read_text && write_text && front_and_back && per_line_write && text_objects &&

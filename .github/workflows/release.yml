@@ -1,4 +1,4 @@
-name: Publish Sign API Probe Candidate
+name: Publish Sign API Linux Release
 
 on:
   push:
@@ -21,12 +21,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.9
+  RELEASE_VERSION: 0.2.0
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
   validate:
-    name: Validate prerelease source
+    name: Validate release source
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -88,8 +88,8 @@ jobs:
             exit 1
           fi
 
-  exact-probe-candidate:
-    name: Build probe candidate (${{ matrix.platform }})
+  exact-release:
+    name: Build supported release (${{ matrix.platform }})
     needs: [validate]
     strategy:
       fail-fast: false
@@ -132,7 +132,7 @@ jobs:
           sudo update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-18 100 || true
           echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
 
-      - name: Build Linux candidate and test wheel
+      - name: Build Linux release and test wheel
         shell: bash
         run: >-
           python scripts/build_exact.py
@@ -184,7 +184,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.PROJECT_SLUG }}-probe-candidate-${{ matrix.bds }}-${{ matrix.platform }}
+          name: ${{ env.PROJECT_SLUG }}-release-${{ matrix.bds }}-${{ matrix.platform }}
           path: dist/release/*
           if-no-files-found: error
           retention-days: 30
@@ -204,8 +204,8 @@ jobs:
           retention-days: 14
 
   publish:
-    name: Publish GitHub prerelease
-    needs: [exact-probe-candidate]
+    name: Publish GitHub release
+    needs: [exact-release]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -219,10 +219,10 @@ jobs:
       - name: Download the exact Linux package
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.PROJECT_SLUG }}-probe-candidate-*
+          pattern: ${{ env.PROJECT_SLUG }}-release-*
           path: release-assets
           merge-multiple: true
-      - name: Verify complete four-file Linux candidate set
+      - name: Verify complete four-file Linux package set
         run: >-
           python scripts/verify_combined_release_assets.py
           --slug "${{ env.PROJECT_SLUG }}"
@@ -238,17 +238,17 @@ jobs:
             | xargs -0 -r sha256sum > SHA256SUMS.txt
           test -s SHA256SUMS.txt
           test "$(wc -l < SHA256SUMS.txt)" -eq 4
-      - name: Create or update the probe-candidate prerelease
+      - name: Create or update the stable Linux release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Alpha.9 is the Linux x64 full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33. It exposes the exact-binary-gated native sign lifecycle so one /signprobe accept <x> <y> <z> confirm session can exercise all implemented layers alongside the immutable 48-case and 31-probe matrix. A qualification passes only with 48/48 cases, 31/31 evidence-backed probes, every pre-stage native capability, zero failed or skipped steps, matching stage/matrix binary identity, and conflict-free ownership cleanup. Exact-binary, native fingerprint/ABI, revision, readback, rollback, and ownership gates remain enforced. This release publishes only the Linux x64 .so, Linux SDK package, package checksum, and CPython 3.14 Linux tester wheel. Client acknowledgement and reconnect/restart evidence remain live qualification requirements. Restore a backup and use only a disposable world.'
+          notes='Endstone Sign API v0.2.0 is the first supported Linux x64 release for Endstone 0.11.6 / exact BDS 1.26.33.1. It publishes the endstone:sign:v2 C++ service ABI 2 for sign capture, placement, removal, front/back text, per-line updates, filtered text, owner XUID, outline/formatting flags, API change events, replacement, clone, move, and atomic transactions. Every mutation remains exact-binary, primary-thread, capability, revision, readback, and rollback gated. Known unavailable v0.2.0 capabilities are text objects, color, glow, wax, editor locking/opening, player edit interception, restart-persistence certification, and completeControl(). Consumers must require supportedRelease() and each optional capability they use. This release contains only the Linux x64 .so, Linux SDK package, checksum, and CPython 3.14 diagnostic wheel.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
-            gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"
+            gh release edit "$RELEASE_TAG" --prerelease=false --latest --notes "$notes"
           else
             if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
               tag_args=(--verify-tag)
@@ -256,8 +256,8 @@ jobs:
               tag_args=(--target "$GITHUB_SHA")
             fi
             gh release create "$RELEASE_TAG" release-assets/* \
-              "${tag_args[@]}" --prerelease --latest=false \
-              --title "Endstone Sign API $RELEASE_TAG - Probe Candidate" \
+              "${tag_args[@]}" --latest \
+              --title "Endstone Sign API $RELEASE_TAG" \
               --notes "$notes"
           fi
           if [[ "$GITHUB_REF" == "refs/heads/$RELEASE_TAG" ]]; then

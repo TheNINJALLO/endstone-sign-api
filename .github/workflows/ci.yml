@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELEASE_VERSION: 0.2.0-alpha.9
+  RELEASE_VERSION: 0.2.0
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -81,8 +81,8 @@ jobs:
           cmake --build build --config Release --parallel
           ctest --test-dir build -C Release --output-on-failure
 
-  exact-probe-candidate:
-    name: BDS 1.26.33 disposable-server candidate (${{ matrix.platform }})
+  exact-release:
+    name: BDS 1.26.33 supported Linux release (${{ matrix.platform }})
     needs: [metadata]
     strategy:
       fail-fast: false
@@ -127,7 +127,7 @@ jobs:
           clang++-18 --version
           ninja --version
 
-      - name: Build and package Linux probe candidate
+      - name: Build and package Linux release
         shell: bash
         run: >-
           python scripts/build_exact.py
@@ -180,7 +180,7 @@ jobs:
       - name: Upload disposable-server test package
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ env.PROJECT_SLUG }}-probe-candidate-${{ matrix.bds }}-${{ matrix.platform }}
+          name: ${{ env.PROJECT_SLUG }}-release-${{ matrix.bds }}-${{ matrix.platform }}
           path: dist/release/*
           if-no-files-found: error
           retention-days: 30
@@ -205,7 +205,7 @@ jobs:
 
   test-wheel:
     name: Verify the Linux Sign API server-test wheel
-    needs: [metadata, exact-probe-candidate]
+    needs: [metadata, exact-release]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -219,7 +219,7 @@ jobs:
       - name: Download the Linux package
         uses: actions/download-artifact@v8
         with:
-          pattern: ${{ env.PROJECT_SLUG }}-probe-candidate-*
+          pattern: ${{ env.PROJECT_SLUG }}-release-*
           path: dist/test-wheel
           merge-multiple: true
       - name: Verify wheel structure and bundled native bridges

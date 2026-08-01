@@ -20,6 +20,10 @@
 #define ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE 0
 #endif
 
+#ifndef ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+#define ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE 0
+#endif
+
 namespace endstone_sign {
 namespace {
 
@@ -185,7 +189,7 @@ std::shared_ptr<ISignAdapter> makeBds2630SignAdapter(endstone::Server &server) {
 #if ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
     if (report.complete()) return makeVerifiedBds2630SignAdapter(server);
 #endif
-#if ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
+#if ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE || ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
     if (report.runtime_version_match && report.endstone_version_match)
         return makeExperimentalBds2630SignAdapter(server);
 #endif

@@ -13,6 +13,8 @@ option(ENDSTONE_SIGN_BUILD_LIVE_PYTHON
 option(ENDSTONE_SIGN_BUILD_NATIVE_2630 "Build the guarded BDS 26.30 boundary" ON)
 option(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
        "Build the unverified native bridge candidate for disposable-server probing" OFF)
+option(ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+       "Build the exact Linux native bridge with the supported v0.2.0 capability subset" OFF)
 option(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
        "Compile the generated, stage-verified SignBlockActor bridge" OFF)
 option(ENDSTONE_SIGN_WARNINGS_AS_ERRORS "Treat project warnings as errors" ON)
@@ -103,16 +105,21 @@ if(ENDSTONE_SIGN_BUILD_SHARED)
     endif()
 endif()
 
-if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
-   ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
+if((ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
+    ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE) OR
+   (ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
+    ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE) OR
+   (ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE AND
+    ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE))
     message(FATAL_ERROR
-        "The experimental probe bridge and verified release bridge are mutually exclusive")
+        "The experimental, supported-release, and verified native bridge modes are mutually exclusive")
 endif()
 
-if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE AND
+if((ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+    ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE) AND
    NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/experimental_bds_26_30_adapter.cpp")
     message(FATAL_ERROR
-        "Experimental bridge requested, but src/experimental_bds_26_30_adapter.cpp is absent")
+        "Native implementation requested, but src/experimental_bds_26_30_adapter.cpp is absent")
 endif()
 
 if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE AND
@@ -191,6 +198,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
                 "A verified release bridge requires a manifest with status=verified")
         endif()
         if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+           ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE OR
            ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
             set(ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR
                 "${CMAKE_CURRENT_BINARY_DIR}/generated/endstone_sign/internal")
@@ -311,7 +319,8 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     if(ENDSTONE_SIGN_BUILD_NATIVE_2630)
         list(APPEND SIGN_PLUGIN_SOURCES src/bds_26_30_adapter.cpp)
     endif()
-    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE)
+    if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+       ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE)
         list(APPEND SIGN_PLUGIN_SOURCES src/experimental_bds_26_30_adapter.cpp)
     endif()
     if(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
@@ -336,6 +345,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ${endstone_BINARY_DIR}/include/generated
     )
     if(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE OR
+       ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE OR
        ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE)
         target_sources(sign_api PRIVATE
             "${ENDSTONE_SIGN_EXPERIMENTAL_IDENTITY_DIR}/experimental_runtime_identity.h")
@@ -345,8 +355,9 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     target_compile_definitions(sign_api PRIVATE
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
         ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
+        ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=$<BOOL:${ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE}>
-        ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
+        ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION=$<OR:$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>,$<BOOL:${ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE}>>
         ENDSTONE_SIGN_BDS_BUILD="${ENDSTONE_BDS_BUILD}"
         ENDSTONE_SIGN_BDS_PACKAGE="${ENDSTONE_BDS_PACKAGE}"
         ENDSTONE_SIGN_ENDSTONE_VERSION="${ENDSTONE_EXACT_VERSION}"

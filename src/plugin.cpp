@@ -13,6 +13,10 @@
 #define ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE 0
 #endif
 
+#ifndef ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
+#define ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE 0
+#endif
+
 class SignApiPlugin : public endstone::Plugin {
 public:
     void onEnable() override {
@@ -24,11 +28,14 @@ public:
 #endif
         service_ = std::make_shared<endstone_sign::SignService>(adapter_);
         const auto caps = service_->capabilities();
-        if (!caps.completeControl() && !ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE) {
+        const bool supported_release =
+            ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE && caps.supportedRelease();
+        if (!caps.completeControl() && !supported_release &&
+            !ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE) {
             const auto report = endstone_sign::inspectBds2630SignActivation(getServer());
             std::string message =
-                "Sign API refused to register endstone:sign:v2 because complete native control "
-                "is not verified";
+                "Sign API refused to register endstone:sign:v2 because neither the supported "
+                "release tier nor complete native control is available";
             if (!report.failures.empty()) {
                 message += ": ";
                 for (std::size_t index = 0; index < report.failures.size(); ++index) {
@@ -42,7 +49,11 @@ public:
             return;
         }
 
-        if (!caps.completeControl()) {
+        if (supported_release) {
+            getLogger().info(
+                "Registering the supported Linux v0.2.0 sign text/structure service; "
+                "callers must check capabilities for optional advanced fields");
+        } else if (!caps.completeControl()) {
             getLogger().warning(
                 "EXPERIMENTAL TEST BUILD: registering endstone:sign:v2 before native "
                 "symbol and disposable-world probe verification; do not use on a production world");
@@ -63,7 +74,9 @@ public:
             endstone::ServicePriority::Normal);
         getLogger().info(
             std::string("Sign API ") + ENDSTONE_SIGN_VERSION +
-            (caps.completeControl() ? " registered complete service " : " registered experimental service ") +
+            (caps.completeControl() ? " registered complete service " :
+             supported_release ? " registered supported service " :
+                                 " registered experimental service ") +
             std::string(endstone_sign::SignServiceName) +
             " using " + service_->adapterName());
     }
@@ -85,7 +98,7 @@ private:
 
 ENDSTONE_PLUGIN("sign_api", ENDSTONE_SIGN_VERSION, SignApiPlugin) {
     prefix = "SignAPI";
-    description = "Exact-build complete sign lifecycle API for Endstone";
+    description = "Exact-build Linux sign text and structure API for Endstone";
     website = "https://github.com/TheNINJALLO/endstone-sign-api";
     authors = {"Ninj-OS contributors"};
 }

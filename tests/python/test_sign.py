@@ -12,6 +12,7 @@ from endstone_sign import (
     SignActorContext,
     SignApplyStatus,
     SignCloneRequest,
+    SignCapabilities,
     SignEventKind,
     SignKind,
     SignLocation,
@@ -63,6 +64,33 @@ def standing(location: SignLocation, material: SignMaterial, first: str) -> Sign
 
 
 class SignApiTests(unittest.TestCase):
+    def test_supported_release_is_a_strict_subset_of_complete_control(self) -> None:
+        stable = SignCapabilities(
+            capture=True,
+            place=True,
+            remove=True,
+            replace=True,
+            clone=True,
+            move=True,
+            atomic_transactions=True,
+            read_text=True,
+            write_text=True,
+            front_and_back=True,
+            per_line_write=True,
+            filtered_text=True,
+            owner_xuid=True,
+            hide_glow_outline=True,
+            persist_formatting=True,
+            api_edit_events=True,
+            client_updates=True,
+            exact_build_match=True,
+            exact_binary_hash_match=True,
+            symbols_validated=True,
+        )
+        self.assertTrue(stable.supported_release)
+        self.assertFalse(stable.complete_control)
+        self.assertFalse(replace(stable, write_text=False).supported_release)
+
     def test_material_and_identifier_mapping(self) -> None:
         identifiers = {
             SignMaterial.OAK: (

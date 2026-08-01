@@ -127,6 +127,7 @@ py::dict status(endstone::Server &server) {
     if (!service) return out;
     const auto caps = service->capabilities();
     out["adapter"] = service->adapterName();
+    out["supported_release"] = caps.supportedRelease();
     out["complete_control"] = caps.completeControl();
     py::dict capabilities;
 #define ENDSTONE_SIGN_CAP(name) capabilities[#name] = caps.name

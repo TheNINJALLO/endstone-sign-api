@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.2.0
+
+- Published the first supported Linux x64 `endstone:sign:v2` ABI 2 service for
+  exact BDS `1.26.33.1` and Endstone `0.11.6`.
+- Added `SignCapabilities::supportedRelease()` so production consumers can
+  require the stable text/structure tier without confusing it with the future
+  `completeControl()` contract.
+- Fixed the matrix preflight to accept the release adapter's valid `captured`
+  actor status in addition to the older experimental status.
+- Kept known failed or unaccepted surfaces false: text objects, color, glow,
+  wax, editor lock/open, player edit interception, restart persistence, and
+  complete control.
+- Added practical C++ integration examples for a chest shop, two-way Discord
+  sign synchronization, and scheduler-driven moving messages.
+- Restricted release artifacts to the Linux `.so`, Linux SDK ZIP and checksum,
+  and the matching CPython 3.14 diagnostic wheel.
+
 ## 0.2.0-alpha.9
 
 - Enabled the experimental exact-binary-gated adapter capabilities for sign

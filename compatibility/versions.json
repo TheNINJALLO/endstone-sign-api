@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.0-alpha.9",
+  "api": "0.2.0",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -10,21 +10,47 @@
       "runtime_bds": "26.33",
       "official_package": "1.26.33.1",
       "endstone": "0.11.6",
-      "status": "alpha9-full-system-qualification-candidate",
+      "status": "stable-linux-supported-subset",
       "portable_contract": "complete",
       "native_service_registration": true,
+      "supported_native_service_registration": true,
       "verified_native_service_registration": false,
       "complete_control": false,
-      "activation_requirements": [
+      "supported_capabilities": [
+        "capture",
+        "place",
+        "remove",
+        "replace",
+        "clone",
+        "move",
+        "atomic_transactions",
+        "front_and_back_text",
+        "per_line_write",
+        "filtered_text",
+        "owner_xuid",
+        "hide_glow_outline",
+        "persist_formatting",
+        "api_edit_events",
+        "client_updates"
+      ],
+      "known_unavailable_capabilities": [
+        "text_objects",
+        "text_color",
+        "glowing",
+        "waxed",
+        "editor_lock",
+        "open_editor",
+        "player_edit_events",
+        "restart_persistence",
+        "complete_control"
+      ],
+      "runtime_requirements": [
         "exact executable SHA-256",
-        "all required SignBlockActor symbols on Linux x64",
-        "verified function signatures and class ABI",
-        "player edit interception",
-        "client update verification",
-        "restart persistence verification",
-        "disposable-world probe report"
+        "exact BDS 1.26.33.1 on Linux x64",
+        "Endstone 0.11.6",
+        "required SignBlockActor symbol and ABI fingerprints"
       ]
     }
   ],
-  "policy": "partial experimental capabilities are individually exact-gated; verified complete control remains fail-closed"
+  "policy": "v0.2.0 consumers require supportedRelease() and every optional capability they use; completeControl() remains false"
 }

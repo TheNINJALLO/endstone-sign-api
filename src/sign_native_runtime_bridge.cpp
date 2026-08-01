@@ -9,9 +9,12 @@
 #if defined(_WIN32)
 #include <Windows.h>
 #define ENDSTONE_SIGN_LOCAL
+#define ENDSTONE_SIGN_LOCAL_FALLBACK
 #elif defined(__linux__)
 #include <link.h>
 #define ENDSTONE_SIGN_LOCAL __attribute__((visibility("hidden")))
+#define ENDSTONE_SIGN_LOCAL_FALLBACK \
+  __attribute__((visibility("hidden"), weak))
 #else
 #error "The exact Sign adapter supports only Windows and Linux"
 #endif
@@ -19,7 +22,7 @@
 // WeakEntityRef<Player>::tryUnwrap ultimately needs this small lookup. Keeping
 // the exact lookup local prevents the linker from importing actor.cpp, whose
 // many unrelated actor helpers transitively import the item registry.
-ENDSTONE_SIGN_LOCAL Actor *
+ENDSTONE_SIGN_LOCAL_FALLBACK Actor *
 Actor::tryGetFromEntity(const EntityContext &entity, const bool include_removed) {
   auto *component = entity.tryGetComponent<ActorOwnerComponent>();
   if (!component)
@@ -98,3 +101,4 @@ ENDSTONE_SIGN_LOCAL ::Dimension &EndstoneDimension::getHandle() const {
 } // namespace endstone::core
 
 #undef ENDSTONE_SIGN_LOCAL
+#undef ENDSTONE_SIGN_LOCAL_FALLBACK

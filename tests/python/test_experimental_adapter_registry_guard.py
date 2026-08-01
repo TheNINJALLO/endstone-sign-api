@@ -4,6 +4,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_SOURCE = ROOT / "src" / "experimental_bds_26_30_adapter.cpp"
+RUNTIME_BRIDGE_SOURCE = ROOT / "src" / "sign_native_runtime_bridge.cpp"
 
 
 class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
@@ -59,6 +60,16 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         self.assertIn("auto native =", restore)
         self.assertNotIn("const auto native =", restore)
         self.assertIn("signalActorChanged(*native.access);", restore)
+
+    def test_actor_lookup_fallback_yields_to_linked_endstone_definition(self) -> None:
+        source = RUNTIME_BRIDGE_SOURCE.read_text(encoding="utf-8")
+
+        self.assertIn('__attribute__((visibility("hidden"), weak))', source)
+        self.assertIn(
+            "ENDSTONE_SIGN_LOCAL_FALLBACK Actor *\nActor::tryGetFromEntity",
+            source,
+        )
+        self.assertEqual(source.count("ENDSTONE_SIGN_LOCAL_FALLBACK Actor *"), 1)
 
 
 if __name__ == "__main__":

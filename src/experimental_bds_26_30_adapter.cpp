@@ -293,8 +293,13 @@ class ExperimentalLinuxTextBridge {
     }
 
     [[nodiscard]] std::uintptr_t updateTextFromClientAddress() const {
+#if defined(__linux__) && defined(__x86_64__)
         requireReady();
         return image_base_ + UpdateTextFromClientRva;
+#else
+        throw std::runtime_error(
+            "player-edit hook address is available only on Linux x64");
+#endif
     }
 #endif
 

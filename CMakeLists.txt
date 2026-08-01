@@ -364,6 +364,10 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         target_link_options(sign_api PRIVATE "LINKER:--exclude-libs,ALL")
     endif()
     if(UNIX AND NOT APPLE)
+        # The pinned Clang 18 Bedrock graph emits DWARF forms that Ubuntu
+        # 22.04's GNU ld cannot reliably consume. Keep the exact Linux link on
+        # the matching LLVM linker selected and checked by build_exact.py.
+        target_link_options(sign_api PRIVATE -fuse-ld=lld)
         add_custom_command(TARGET sign_api POST_BUILD
             COMMAND "${CMAKE_COMMAND}"
                 "-DPLUGIN_FILE:FILEPATH=$<TARGET_FILE:sign_api>"

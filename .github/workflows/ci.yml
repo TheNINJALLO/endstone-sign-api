@@ -120,7 +120,7 @@ jobs:
             chmod +x llvm.sh
             sudo ./llvm.sh 18
           fi
-          sudo apt-get install -y ninja-build clang-tools-18 libc++-18-dev libc++abi-18-dev
+          sudo apt-get install -y ninja-build clang-tools-18 lld-18 libc++-18-dev libc++abi-18-dev
           sudo update-alternatives --install /usr/bin/clang-scan-deps clang-scan-deps /usr/bin/clang-scan-deps-18 100 || true
           echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
           clang-18 --version
@@ -146,7 +146,7 @@ jobs:
             exit 0
           }
           $diagnostics = @(Get-Content $log.FullName | Where-Object {
-            $_ -match '(?i)(fatal error:|\berror:|\berror C[0-9]+:)'
+            $_ -match '(?i)(fatal error:|\berror:|\berror C[0-9]+:|undefined (reference|symbol)|\bld(?:\.lld)?(?:-[0-9]+)?:)'
           } | Select-Object -Last 20)
           if ($diagnostics.Count -eq 0) {
             Write-Host "::error title=Exact native build failed::The build failed without a compiler diagnostic line."

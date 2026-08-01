@@ -16,7 +16,11 @@ SOURCE_RELEASE = json.loads((ROOT / "SOURCE_RELEASE.json").read_text(encoding="u
 PROJECT = "sign"
 PROJECT_SLUG = "endstone-sign-api"
 VERSION = SOURCE_RELEASE["version"]
-SUPPORTED_PLATFORMS = {"linux-x64", "windows-x64"}
+SUPPORTED_PLATFORMS = {
+    value
+    for value in SOURCE_RELEASE.get("platforms", [])
+    if isinstance(value, str)
+}
 SUPPORTED_BDS = {
     value
     for value in SOURCE_RELEASE.get("runtime_bds", [])
@@ -192,8 +196,18 @@ def main() -> int:
     else:
         clang = require("clang-18")
         clangxx = require("clang++-18")
+        lld = require(
+            "ld.lld",
+            ("/usr/lib/llvm-18/bin/ld.lld", "/usr/bin/ld.lld-18"),
+        )
+    if SUPPORTED_PLATFORMS != {"linux-x64"}:
+        raise SystemExit(
+            "SOURCE_RELEASE.json must declare this release as Linux x64 only; "
+            f"derived {sorted(SUPPORTED_PLATFORMS)}"
+        )
         env["CC"] = clang
         env["CXX"] = clangxx
+        env["PATH"] = str(Path(lld).parent) + os.pathsep + env.get("PATH", "")
         compiler_conf = 'tools.build:compiler_executables={"c":"clang-18","cpp":"clang++-18"}'
 
     run(
@@ -271,7 +285,11 @@ def main() -> int:
             f"-DCMAKE_LINKER={lld_link}",
         ]
     else:
-        configure += [f"-DCMAKE_C_COMPILER={clang}", f"-DCMAKE_CXX_COMPILER={clangxx}"]
+        configure += [
+            f"-DCMAKE_C_COMPILER={clang}",
+            f"-DCMAKE_CXX_COMPILER={clangxx}",
+            f"-DCMAKE_LINKER={lld}",
+        ]
 
     print(f"Building {PROJECT_SLUG} {VERSION} for BDS {args.bds} ({args.platform})")
     print(f"Targets: {', '.join(BUILD_TARGETS)}; parallel jobs: {args.parallel}")

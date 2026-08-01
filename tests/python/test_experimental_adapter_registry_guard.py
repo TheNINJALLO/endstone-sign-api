@@ -136,6 +136,7 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         self.assertIn("installPlayerEditHook();", adapter)
         self.assertIn("TextObjectJsonRva = 0x09DD50D0", adapter)
         self.assertIn("TextObjectJsonSha256", adapter)
+        self.assertIn("Json::Value::ArrayIndex", adapter)
         self.assertIn('parsed.find("rawtext")', adapter)
         self.assertIn(
             "'{\"rawtext\":[{\"text\":\"a7\"}]}'",

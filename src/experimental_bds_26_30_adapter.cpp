@@ -629,7 +629,7 @@ class ExperimentalLinuxTextBridge {
             return value.asBool();
         case Json::arrayValue: {
             auto result = nlohmann::json::array();
-            for (Json::ArrayIndex index = 0; index < value.size(); ++index)
+            for (Json::Value::ArrayIndex index = 0; index < value.size(); ++index)
                 result.push_back(jsonValue(value[index]));
             return result;
         }

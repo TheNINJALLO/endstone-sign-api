@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate one platform's strict alpha.8 full-system qualification evidence."""
+"""Validate one platform's strict alpha.9 full-system qualification evidence."""
 from __future__ import annotations
 
 import argparse
@@ -34,7 +34,7 @@ AUTOMATION_SPEC.loader.exec_module(AUTOMATION)
 
 BDS_PACKAGE = "1.26.33.1"
 ENDSTONE_VERSION = "0.11.6"
-TESTER_VERSION = "0.2.0a8"
+TESTER_VERSION = "0.2.0a9"
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
 MATERIALS = set(AUTOMATION.MATERIALS)
 KINDS = set(AUTOMATION.KINDS)
@@ -48,8 +48,8 @@ EXPECTED_SERVER_SHA256 = {
     "windows-x64": "4a0b867eee6c24310f405410b17e9794441b81ed8f2976cdd4cef54d0c441829",
 }
 EXPECTED_TESTER_WHEEL = {
-    "linux-x64": "endstone_sign_tester-0.2.0a8-cp314-cp314-linux_x86_64.whl",
-    "windows-x64": "endstone_sign_tester-0.2.0a8-cp314-cp314-win_amd64.whl",
+    "linux-x64": "endstone_sign_tester-0.2.0a9-cp314-cp314-linux_x86_64.whl",
+    "windows-x64": "endstone_sign_tester-0.2.0a9-cp314-cp314-win_amd64.whl",
 }
 
 CASE_OPERATION_ORDER = (

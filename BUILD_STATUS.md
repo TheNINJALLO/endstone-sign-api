@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.0-alpha.8**
+Version: **0.2.0-alpha.9**
 
 ## Portable core
 
@@ -35,9 +35,11 @@ Version: **0.2.0-alpha.8**
 - Experimental service registration: enabled with partial capabilities in the
   disposable-server candidate.
 - Linux structural mutation: executable-hash gated; blank placement,
-  structural capture, and the supported text workflow passed across the hosted
-  48-case alpha.6 matrix. Suite-owned no-drop removal and UI-only editor
-  dispatch remain live-unverified.
+  structural capture, replacement, clone, move, no-drop removal, UI-only
+  editor dispatch, and multi-operation rollback are exposed for the alpha.9
+  qualification run. The supported placement/text workflow passed the hosted
+  48-case alpha.6 matrix; the newly exposed structural layers still require
+  alpha.9 disposable-world evidence.
 - Canonical sign identifier inventory: all 36 IDs are pinned to both exact
   executable identities; the exact Linux binary scan passed 36/36.
 - Descriptor safety: the tester resolves its support, cleanup air, and all 48
@@ -47,7 +49,7 @@ Version: **0.2.0-alpha.8**
 - Automated tester: strict 48-case default matrix, one operation per scheduled
   interval, atomic JSON checkpoints, cancellation, and ownership-aware cleanup;
   the hosted alpha.6 run passed all 48 material/form cases.
-- Alpha.8 full-system coordinator: `/signprobe accept <x> <y> <z> confirm`
+- Alpha.9 full-system coordinator: `/signprobe accept <x> <y> <z> confirm`
   forces the immutable 12-material x 4-form profile, starts the 31-probe stage
   report, defers cleanup for reconnect/restart evidence, and derives a strict
   qualification verdict. Closed capabilities, skips, pending/manual coverage,
@@ -77,13 +79,13 @@ Version: **0.2.0-alpha.8**
   legacy alpha.3 release filename and the server executable directory.
 - Verified complete-control registration: disabled by design.
 
-Use the alpha.8 native candidate only in a backed-up disposable world. It is intended
+Use the alpha.9 native candidate only in a backed-up disposable world. It is intended
 to collect the live evidence required for the next boundary, not for production.
 Alpha.5 is superseded after its Linux matrix aborted on the invalid
 `dark_oak_standing_sign` alias. The returned alpha.6 hosted matrix passed all
 48 default cases, including the corrected legacy dark-oak standing and wall
 identifiers. Expected unsupported advanced and manual checks remained
 skipped/pending, so stage-probe and complete-control activation remain closed.
-Alpha.8 intentionally converts those same gaps into a failed qualification
-verdict instead of a supported-scope success. It does not claim that the gaps
-have been implemented.
+Alpha.9 opens the implemented structural paths to that strict qualification
+while leaving unavailable native layers closed. It does not claim verified
+complete control until the bound platform evidence passes.

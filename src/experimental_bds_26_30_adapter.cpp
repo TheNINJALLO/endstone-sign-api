@@ -630,9 +630,12 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         const bool structural_mutation_gate =
             exact_runtime_ && text_bridge_.executableIdentityMatch();
         result.capture = structural_mutation_gate;
-        result.place = structural_mutation_gate;   // Blank signs only.
+        result.place = structural_mutation_gate;
         result.remove = structural_mutation_gate;  // No item drop.
-        result.replace = false; // Pending hosted rollback and replacement validation.
+        result.replace = structural_mutation_gate;
+        result.clone = structural_mutation_gate;
+        result.move = structural_mutation_gate;
+        result.atomic_transactions = structural_mutation_gate;
         result.open_editor = structural_mutation_gate; // UI dispatch only.
         result.api_edit_events = structural_mutation_gate;
         result.client_updates = structural_mutation_gate;
@@ -746,15 +749,6 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 current->revision,
             };
         }
-        if (requestsStructuralChange(patch)) {
-            return {
-                SignApplyStatus::Unsupported,
-                "structural sign replacement is disabled until NBT-safe rollback and "
-                "hosted postcondition evidence are available",
-                current->revision,
-            };
-        }
-
         if (requestsPlainText(patch)) {
             if (!text_bridge_.ready())
                 return textGateClosed(text_bridge_, current->revision);
@@ -1327,32 +1321,166 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
                 false,
             };
         }
-        if (transaction.operations.size() != 1) {
-            return {
-                SignApplyStatus::Unsupported,
-                "the experimental structural adapter does not claim atomic "
-                "multi-operation transactions",
-                {},
-                false,
-            };
+        struct TransactionLedger {
+            SignOperation operation;
+            std::optional<SignSnapshot> before;
+            bool applied{};
+        };
+
+        auto capture_before = [this](const SignOperation &operation) {
+            return std::visit(
+                [this](const auto &entry) -> std::optional<SignSnapshot> {
+                    using T = std::decay_t<decltype(entry)>;
+                    if constexpr (std::is_same_v<T, SignPlaceRequest>) {
+                        return capture(entry.location);
+                    } else if constexpr (std::is_same_v<T, SignPatch>) {
+                        return capture(entry.location);
+                    } else {
+                        return capture(entry.location);
+                    }
+                },
+                operation);
+        };
+
+        auto apply_operation = [this, &transaction](const SignOperation &operation) {
+            return std::visit(
+                [this, &transaction](const auto &entry) -> SignApplyResult {
+                    using T = std::decay_t<decltype(entry)>;
+                    if constexpr (std::is_same_v<T, SignPlaceRequest>) {
+                        return place(entry, transaction.force);
+                    } else if constexpr (std::is_same_v<T, SignPatch>) {
+                        return apply(entry, transaction.force);
+                    } else {
+                        return remove(entry, transaction.force);
+                    }
+                },
+                operation);
+        };
+
+        auto clear_sign = [this](const SignLocation &location) {
+            try {
+                auto access = locatePublicBlock(server_, location);
+                if (!access) return false;
+                access->block->setType("minecraft:air", false);
+                const auto readback = locatePublicBlock(server_, location);
+                return readback && readback->data->getType() == "minecraft:air";
+            } catch (...) {
+                return false;
+            }
+        };
+
+        auto restore_snapshot = [this](const SignSnapshot &snapshot) {
+            try {
+                auto access = locatePublicBlock(server_, snapshot.location);
+                if (!access) return false;
+
+                auto replacement =
+                    createRegisteredBlockData(server_, snapshot.block_identifier, snapshot.states);
+                if (!replacement.type_registered) return false;
+                if (!replacement.data) return false;
+                access->block->setData(*replacement.data, false);
+
+                auto native =
+                    locateNativeSignActor(server_, snapshot.location, &text_bridge_);
+                if (native.access) {
+                    if (text_bridge_.ready()) {
+                        try {
+                            const auto before_front = flattenSignLines(snapshot.front.lines);
+                            if (snapshot.front.owner_xuid.size() <=
+                                    ExperimentalLinuxTextBridge::SafeTransferredMessageBytes &&
+                                before_front.size() <=
+                                    ExperimentalLinuxTextBridge::SafeTransferredMessageBytes) {
+                                text_bridge_.setMessage(
+                                    *native.access->actor, SignSide::Front, before_front,
+                                    snapshot.front.owner_xuid);
+                            }
+                        } catch (...) {
+                            // If restoring the optional text payload fails, continue with
+                            // structural restoration only.
+                        }
+                        try {
+                            const auto before_back = flattenSignLines(snapshot.back.lines);
+                            if (snapshot.back.owner_xuid.size() <=
+                                    ExperimentalLinuxTextBridge::SafeTransferredMessageBytes &&
+                                before_back.size() <=
+                                    ExperimentalLinuxTextBridge::SafeTransferredMessageBytes) {
+                                text_bridge_.setMessage(
+                                    *native.access->actor, SignSide::Back, before_back,
+                                    snapshot.back.owner_xuid);
+                            }
+                        } catch (...) {
+                            // If restoring the optional text payload fails, continue with
+                            // structural restoration only.
+                        }
+                        try {
+                            signalActorChanged(*native.access);
+                        } catch (...) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            } catch (...) {
+                return false;
+            }
+        };
+
+        auto rollback = [&](const std::vector<TransactionLedger> &ledger) {
+            bool all_restored = true;
+            for (auto it = ledger.rbegin(); it != ledger.rend(); ++it) {
+                if (!it->applied) continue;
+                bool restored = false;
+                if (it->before) {
+                    restored = restore_snapshot(*it->before);
+                } else {
+                    const auto *place =
+                        std::get_if<SignPlaceRequest>(&it->operation);
+                    if (place) {
+                        restored = clear_sign(place->location);
+                    }
+                }
+                all_restored = all_restored && restored;
+            }
+            return all_restored;
+        };
+
+        std::vector<SignApplyResult> operation_results;
+        std::vector<TransactionLedger> ledger;
+        operation_results.reserve(transaction.operations.size());
+        ledger.reserve(transaction.operations.size());
+
+        for (const auto &operation : transaction.operations) {
+            auto before = capture_before(operation);
+            const auto operation_result = apply_operation(operation);
+            operation_results.push_back(operation_result);
+            ledger.push_back(TransactionLedger{
+                operation,
+                std::move(before),
+                operation_result.ok(),
+            });
+            if (!operation_result.ok()) {
+                if (transaction.rollback_on_failure) {
+                    const bool rolled_back = rollback(ledger);
+                    return {
+                        SignApplyStatus::TransactionFailed,
+                        "transaction stopped: " + operation_result.message,
+                        operation_results,
+                        rolled_back,
+                    };
+                }
+                return {
+                    SignApplyStatus::TransactionFailed,
+                    "transaction stopped: " + operation_result.message,
+                    operation_results,
+                    false,
+                };
+            }
         }
 
-        auto operation_result = std::visit(
-            [this, &transaction](const auto &operation) {
-                using T = std::decay_t<decltype(operation)>;
-                if constexpr (std::is_same_v<T, SignPlaceRequest>) {
-                    return place(operation, transaction.force);
-                } else if constexpr (std::is_same_v<T, SignPatch>) {
-                    return apply(operation, transaction.force);
-                } else {
-                    return remove(operation, transaction.force);
-                }
-            },
-            transaction.operations.front());
         return {
-            operation_result.status,
-            operation_result.message,
-            {operation_result},
+            SignApplyStatus::Applied,
+            "transaction applied atomically",
+            operation_results,
             false,
         };
     }

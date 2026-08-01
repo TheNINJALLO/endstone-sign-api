@@ -45,7 +45,7 @@ acceptance_validator = text("tools/validate_full_system_acceptance.py")
 
 release = source.get("version")
 expect(source.get("name") == "endstone-sign-api", "SOURCE_RELEASE name")
-expect(release == "0.2.0-alpha.8", "SOURCE_RELEASE version")
+expect(release == "0.2.0-alpha.9", "SOURCE_RELEASE version")
 expect(source.get("service") == "endstone:sign:v2", "SOURCE_RELEASE service")
 expect(source.get("service_abi") == 2, "SOURCE_RELEASE service ABI")
 expect(source.get("official_bds_packages") == ["1.26.33.1"], "exact official BDS package")
@@ -57,11 +57,11 @@ expect(bool(match) and match.group(1) == "0.2.0", "CMake project version")
 expect('set(ENDSTONE_BDS_BUILD "1.26.33"' in cmake, "CMake BDS runtime target")
 expect('set(ENDSTONE_BDS_PACKAGE "1.26.33.1"' in cmake, "CMake BDS package target")
 expect('GIT_TAG v0.11.6' in cmake, "CMake Endstone tag")
-expect('version = "0.2.0a8"' in pyproject, "Python project version")
-expect('__version__ = "0.2.0a8"' in init, "Python package version")
-expect('version = "0.2.0a8"' in tester_pyproject, "tester wheel version")
-expect('version = "0.2.0a8"' in tester_plugin, "tester plugin version")
-expect('module.attr("__version__") = "0.2.0a8"' in live_bindings,
+expect('version = "0.2.0a9"' in pyproject, "Python project version")
+expect('__version__ = "0.2.0a9"' in init, "Python package version")
+expect('version = "0.2.0a9"' in tester_pyproject, "tester wheel version")
+expect('version = "0.2.0a9"' in tester_plugin, "tester plugin version")
+expect('module.attr("__version__") = "0.2.0a9"' in live_bindings,
        "live bridge version")
 expect('module.def("place"' in live_bindings, "live bridge blank placement binding")
 for binding in (
@@ -101,10 +101,10 @@ expect('REQUIRED_CAPABILITIES' in acceptance_validator and
        "strict full-system acceptance validator")
 expect('__service_name__ = "endstone:sign:v2"' in init, "Python service name")
 expect('__service_abi__ = 2' in init, "Python service ABI")
-expect('ReleaseVersion = "0.2.0-alpha.8"' in version_header, "C++ release version")
+expect('ReleaseVersion = "0.2.0-alpha.9"' in version_header, "C++ release version")
 expect('ServiceName = "endstone:sign:v2"' in version_header, "C++ service name")
 expect('ServiceAbiVersion = 2' in version_header, "C++ service ABI")
-expect("v0.2.0-alpha.8" in readme, "README release tag")
+expect("v0.2.0-alpha.9" in readme, "README release tag")
 expect("partial experimental" in readme, "README partial native registration warning")
 
 expect(compat.get("project") == "endstone-sign-api", "compatibility project")
@@ -191,7 +191,7 @@ for platform, expected_hash in expected_hashes.items():
         expect("matrix_report_sha256" in stage_probe,
                f"{platform} activation matrix hash gate")
 
-expect('EXPECTED_TESTER_VERSION = "0.2.0a8"' in
+expect('EXPECTED_TESTER_VERSION = "0.2.0a9"' in
        text("tools/verify_native_manifest.py"),
        "native manifest verifier tester version")
 
@@ -206,8 +206,8 @@ for required in (
 ):
     expect(required in workflow, f"workflow contains {required}")
 expect("symbol-gate-pending" not in workflow, "workflow has no stale prototype gate")
-expect("RELEASE_VERSION: 0.2.0-alpha.8" in workflow, "CI release version")
-expect("RELEASE_VERSION: 0.2.0-alpha.8" in release_workflow,
+expect("RELEASE_VERSION: 0.2.0-alpha.9" in workflow, "CI release version")
+expect("RELEASE_VERSION: 0.2.0-alpha.9" in release_workflow,
        "tag workflow release version")
 expect("python scripts/verify_bds_sign_identifiers.py --platform linux-x64"
        in release_workflow, "tag workflow identifier inventory verification")

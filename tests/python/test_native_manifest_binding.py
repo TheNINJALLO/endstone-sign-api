@@ -26,7 +26,7 @@ class NativeManifestBindingTests(unittest.TestCase):
         executable_hash = "61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375"
         plugin_hash = "a" * 64
         tester_hash = "b" * 64
-        config = {"profile": "alpha8-final-qualification"}
+        config = {"profile": "alpha9-full-system-qualification"}
         config_hash = hashlib.sha256(
             json.dumps(
                 config, sort_keys=True, separators=(",", ":"), ensure_ascii=False
@@ -47,7 +47,7 @@ class NativeManifestBindingTests(unittest.TestCase):
             "log_sha256": "c" * 64,
             "world_backup_sha256": "d" * 64,
             "world_seed": "12345",
-            "world_name": "Alpha8Qualification",
+            "world_name": "Alpha9Qualification",
             "started_at_utc": "2026-07-30T12:00:00+00:00",
             "completed_at_utc": "2026-07-30T13:00:00+00:00",
             "operator": "tester",

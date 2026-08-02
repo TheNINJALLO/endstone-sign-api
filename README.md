@@ -32,7 +32,7 @@
 </p>
 
 > [!IMPORTANT]
-> `v0.2.1-alpha.1` is the final Linux x86-64 qualification candidate for exact
+> `v0.2.1-alpha.2` is the final Linux x86-64 qualification candidate for exact
 > BDS package `1.26.33.1`, runtime `26.33`, and Endstone `0.11.6`. Use a
 > backed-up disposable world for the combined release test before production.
 
@@ -77,13 +77,20 @@ flowchart LR
 
 ## 🚦 Candidate status
 
-Version 0.2.1-alpha.1 is the single full-system Linux x64 qualification
+Version 0.2.1-alpha.2 is the single full-system Linux x64 qualification
 candidate that follows stable v0.2.0. It registers `endstone:sign:v2` ABI 2 on
 exact BDS `1.26.33.1` with Endstone `0.11.6` and exposes every native layer at
 once: structure, both text sides, Bedrock raw-text objects, color/glow, wax,
 editor lock/opening, API/player edit events, client updates, and persistence
 coverage. Each mutation still uses a fresh revision, native readback, client
 update, and rollback where applicable.
+
+The alpha.1 Linux report passed all 48 material/form cases and proved the
+TextObject mutation and canonical readback. It also exposed a tester cleanup
+defect: disabling object mode retained the rendered `a7` lines, so the source
+revision no longer matched and the next 11 probes failed in sequence. Alpha.2
+restores those original lines explicitly before continuing, without bypassing
+revision, ownership, readback, cleanup, or evidence checks.
 
 The adapter loads only when the running `bedrock_server` matches the pinned
 Linux executable SHA-256
@@ -103,18 +110,18 @@ Download that build and verify all packaged checksums:
 
 | Deliverable | Verified filename |
 |---|---|
-| Complete Linux SDK package | `endstone-sign-api-v0.2.1-alpha.1-bds-1.26.33-linux-x64.zip` |
+| Complete Linux SDK package | `endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.zip` |
 | Native Endstone plugin | `endstone_sign_bds_1_26_33.so` |
-| CPython 3.14 qualification plugin | `endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl` |
-| SHA-256 manifest | `endstone-sign-api-v0.2.1-alpha.1-bds-1.26.33-linux-x64.sha256` |
+| CPython 3.14 qualification plugin | `endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl` |
+| SHA-256 manifest | `endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256` |
 
 ```bash
 gh run download 30707456488 \
   --repo TheNINJALLO/endstone-sign-api \
   --name endstone-sign-api-release-1.26.33-linux-x64 \
-  --dir sign-api-0.2.1-alpha.1
-cd sign-api-0.2.1-alpha.1
-sha256sum --check endstone-sign-api-v0.2.1-alpha.1-bds-1.26.33-linux-x64.sha256
+  --dir sign-api-0.2.1-alpha.2
+cd sign-api-0.2.1-alpha.2
+sha256sum --check endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256
 ```
 
 Stop the test server, install the matching native plugin and CPython 3.14 tester
@@ -127,8 +134,8 @@ SERVER_ROOT=/srv/endstone
 install -D -m 0644 endstone_sign_bds_1_26_33.so \
   "$SERVER_ROOT/plugins/endstone_sign_bds_1_26_33.so"
 install -D -m 0644 \
-  endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl \
-  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl"
+  endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl \
+  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl"
 cd "$SERVER_ROOT"
 endstone 2>&1 | tee acceptance-server.log
 ```
@@ -201,7 +208,7 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
@@ -463,12 +470,12 @@ python scripts/build_exact.py \
   --parallel 2
 python scripts/verify_release_assets.py \
   --slug endstone-sign-api \
-  --version 0.2.1-alpha.1 \
+  --version 0.2.1-alpha.2 \
   --bds 1.26.33 \
   --platform linux-x64 \
   --release-dir dist/release
 python tests/python/verify_test_wheel.py \
-  dist/release/endstone_sign_tester-0.2.1a1-cp314-cp314-linux_x86_64.whl
+  dist/release/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl
 ```
 
 These commands duplicate the source/package gates exercised by GitHub Actions.

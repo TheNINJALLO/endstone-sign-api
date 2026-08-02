@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.1-alpha.1",
+  "api": "0.2.1-alpha.2",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -52,5 +52,5 @@
       ]
     }
   ],
-  "policy": "v0.2.1-alpha.1 exposes every exact-Linux native capability so one strict full-system run can qualify them together; completeControl() remains false until stage evidence is activated"
+  "policy": "v0.2.1-alpha.2 exposes every exact-Linux native capability and restores pre-probe plain text after TextObject qualification so one strict full-system run can qualify all layers together; completeControl() remains false until stage evidence is activated"
 }

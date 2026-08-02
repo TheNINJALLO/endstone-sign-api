@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.1a1"
+    version = "0.2.1a2"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -2724,12 +2724,48 @@ class SignApiTesterPlugin(Plugin):
             applied = {"ok": False, "status": "exception", "message": str(error)}
         applied_capture = self._matrix_capture(context, case)
         applied_revision = int(applied_capture.get("revision") or applied.get("revision") or 0)
+        restore_transition: dict[str, Any] | None = None
         try:
             restored = (
                 call(restore_fields, applied_revision)
                 if applied.get("ok") is True and applied_revision > 0
                 else {"ok": False, "status": "not_attempted"}
             )
+            # Switching a native TextObject back to plain mode materializes its
+            # rendered text; it does not recover the plain lines that existed
+            # before the object was applied. Complete that restoration with a
+            # revision-guarded plain-text write so later probes keep ownership
+            # of the same source sign.
+            if (
+                operation == "capture_text_object"
+                and not bool(front_before.get("message_is_text_object"))
+                and restored.get("ok") is True
+            ):
+                restore_transition = restored
+                transition_revision = int(restored.get("revision") or 0)
+                if transition_revision <= 0:
+                    restored = {
+                        "ok": False,
+                        "status": "invalid_revision",
+                        "message": "TextObject restore transition returned no revision",
+                    }
+                else:
+                    restored = dict(
+                        bridge.set_text(
+                            self.server,
+                            case["dimension"],
+                            sign["x"],
+                            sign["y"],
+                            sign["z"],
+                            "front",
+                            [str(line) for line in front_before.get("lines", [])],
+                            None,
+                            None,
+                            None,
+                            False,
+                            transition_revision,
+                        )
+                    )
         except Exception as error:
             restored = {"ok": False, "status": "exception", "message": str(error)}
         restored_capture = self._matrix_capture(context, case)
@@ -2756,6 +2792,7 @@ class SignApiTesterPlugin(Plugin):
             response={
                 "apply": applied,
                 "applied_capture": applied_capture,
+                "restore_transition": restore_transition,
                 "restore": restored,
                 "restored_capture": restored_capture,
             },

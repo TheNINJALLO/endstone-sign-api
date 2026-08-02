@@ -1,6 +1,6 @@
 # Endstone Sign API validation results
 
-Candidate: `0.2.1-alpha.1`
+Candidate: `0.2.1-alpha.2`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-08-01`
 
@@ -13,6 +13,15 @@ serializer instead of the rendered-message cache. The editor-lock probe now
 checks the runtime ID that BDS actually stores instead of requiring a fabricated
 XUID. `completeControl()` remains false until the strict matrix, seven guided
 client checks, restart, cleanup, log, and world backup pass validation.
+
+The returned alpha.1 report passed 48/48 cases and all per-case color, glow,
+wax, and unwax mutations. Its TextObject apply and canonical capture also
+passed, but the tester's restore request only disabled object mode; Bedrock
+correctly retained the rendered `a7` lines. That changed the runner-owned source
+revision and cascaded into 11 later source-ownership failures plus a cleanup
+conflict. Alpha.2 restores the original four plain lines with the revision
+returned by the mode transition, and a regression test runs all downstream
+probes against that exact behavior.
 
 ## Historical v0.2.0 result
 
@@ -104,7 +113,7 @@ wheels. They are experimental artifacts, not verified production plugins.
 | Check | Result |
 |---|---|
 | Package compilation | Passed |
-| Unit tests | `106/106` passed, including live-bridge execution of all 12 server-side full-system probes, semantic full-system evidence validation, hash-bound activation-stage/matrix verification, exact server/plugin/tester binding, public-air cleanup proof, immutable acceptance cleanup, matrix/stage projection, required-preflight enforcement, identifier inventory, descriptor preflight, and static candidate-ledger coverage |
+| Unit tests | `111/111` passed, including live-bridge execution of all 12 server-side full-system probes, TextObject plain-line restoration, semantic full-system evidence validation, hash-bound activation-stage/matrix verification, exact server/plugin/tester binding, public-air cleanup proof, immutable acceptance cleanup, matrix/stage projection, required-preflight enforcement, identifier inventory, descriptor preflight, and static candidate-ledger coverage |
 | Python example | Passed |
 | Pure Python wheel | Built and inspected |
 | Native gate tool tests | Passed |

@@ -1,6 +1,6 @@
 # C++ plugin integration examples
 
-Endstone Sign API v0.2.1-alpha.1 publishes the typed service `endstone:sign:v2` with
+Endstone Sign API v0.2.1-alpha.2 publishes the typed service `endstone:sign:v2` with
 service ABI `2`. Add the release `include/` directory to your plugin build,
 link/load after the Endstone plugin named `sign_api`, and load
 `endstone_sign::LiveSignService` during `onEnable()`.
@@ -23,7 +23,7 @@ should only enqueue a small immutable payload; schedule inbound Discord changes
 back onto the primary thread before calling the API. Direct player sign edits
 may be mirrored when `player_edit_events` is true and a listener is registered.
 
-The v0.2.1-alpha.1 candidate advertises text objects, color, glow, wax, editor
+The v0.2.1-alpha.2 candidate advertises text objects, color, glow, wax, editor
 locking/opening, player edit interception, and restart-persistence coverage for
 the one full-system Linux qualification. Production consumers must still check
 each capability and wait for the accepted stable release before relying on it.

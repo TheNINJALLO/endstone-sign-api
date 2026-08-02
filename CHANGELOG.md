@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.1-alpha.2
+
+- Fixed the strict Linux acceptance harness's TextObject cleanup. When the
+  source began as plain text, the probe now disables object mode and then uses
+  the returned revision to restore the original four lines explicitly.
+- Added a live-behavior regression that renders the probe object as `a7`,
+  confirms disabling object mode alone retains that rendering, and requires
+  the full 12-operation sequence plus conflict-free cleanup to pass.
+- Preserved the successful alpha.1 runtime findings: all 48 material/form cases
+  passed and every pre-stage native capability was available. Alpha.2 fixes the
+  retained-source revision cascade exposed by that run; it does not weaken an
+  activation, readback, ownership, cleanup, or evidence gate.
+
 ## 0.2.1-alpha.1
 
 - Removed the stable-build capability overrides and mutation rejections so the

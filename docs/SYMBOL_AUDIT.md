@@ -60,7 +60,7 @@ signature, ABI, behavior, hook, or disposable-world gates.
 
 ## Linux TextObject serializer boundary
 
-The v0.2.1-alpha.1 Linux candidate additionally calls the exact BDS
+The v0.2.1-alpha.1 and later Linux candidates additionally call the exact BDS
 `TextObjectRoot` JSON serializer at RVA `0x09DD50D0`. The complete 122-byte
 function fingerprint is
 `9b385769e1291cf163e38eea2a0ed7f8527894af81f3201cff2889262486b58a`.

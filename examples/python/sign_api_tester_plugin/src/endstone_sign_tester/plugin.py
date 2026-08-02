@@ -66,7 +66,7 @@ class SignApiTesterPlugin(Plugin):
     """Operator-only, explicit-coordinate probe harness for disposable worlds."""
 
     api_version = "0.11"
-    version = "0.2.1a2"
+    version = "0.2.1a3"
     description = "Exact Sign API command probes and stage-report recorder"
     depend = ["sign_api"]
 
@@ -2878,13 +2878,24 @@ class SignApiTesterPlugin(Plugin):
             after=after,
             reason="editor lock applied and read back" if passed else "editor lock probe failed",
         )
+        if passed:
+            # BDS editor locks are session-transient and may be cleared before
+            # the next scheduled runner tick when no editor session owns the
+            # synthetic runtime ID. Restore the original state immediately
+            # after the verified readback while the guarded revision is valid.
+            self._matrix_run_editor_unlock_probe(context)
 
     def _matrix_run_editor_unlock_probe(self, context: dict[str, Any]) -> None:
         operation = "capture_editor_unlock"
         required = ("capture", "editor_lock")
+        report = context["report"]
+        if any(
+            step.get("operation") == operation
+            for step in list(report.get("run_steps") or [])
+        ):
+            return
         if not self._matrix_probe_preflight(context, operation, required):
             return
-        report = context["report"]
         case = self._matrix_probe_source(report)
         restore = dict(dict(report.get("run_probe") or {}).get("lock_restore") or {})
         before_lock = dict(restore.get("snapshot") or {})

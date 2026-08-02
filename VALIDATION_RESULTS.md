@@ -1,6 +1,6 @@
 # Endstone Sign API validation results
 
-Candidate: `0.2.1-alpha.2`
+Candidate: `0.2.1-alpha.3`
 Service ABI: `endstone:sign:v2`  
 Validation date: `2026-08-01`
 
@@ -22,6 +22,17 @@ revision and cascaded into 11 later source-ownership failures plus a cleanup
 conflict. Alpha.2 restores the original four plain lines with the revision
 returned by the mode transition, and a regression test runs all downstream
 probes against that exact behavior.
+
+The returned alpha.2 report then passed 48/48 cases, including the corrected
+TextObject roundtrip, and reached the editor-lock layer with every pre-stage
+capability available. Applying synthetic runtime ID `2147483007` and its
+immediate native capture both passed. Before the next scheduled unlock phase,
+Bedrock cleared that non-session lock and returned the sign to its original
+state/revision. The harness rejected the now-unlocked source, which caused the
+unlock plus five later source-dependent operations to fail and left one cleanup
+conflict. Alpha.3 verifies and restores the transient lock within one tick,
+records lock and unlock separately, and tests the sequence against a fake bridge
+that clears any synthetic lock allowed to cross a tick boundary.
 
 ## Historical v0.2.0 result
 

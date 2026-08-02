@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1-alpha.3
+
+- Fixed the strict Linux acceptance scheduler's editor-lock roundtrip. The
+  tester now captures the synthetic lock and restores the original unlocked
+  state immediately, within the same scheduled tick and revision chain.
+- Retained separate `capture_editor_lock` and `capture_editor_unlock` evidence
+  steps, so the validator still requires both semantic operations rather than
+  treating the combined scheduling boundary as one assertion.
+- Added a regression model that clears any synthetic lock left at a tick
+  boundary, matching the alpha.2 live report and preventing the unlock plus
+  downstream source-revision cascade from returning.
+- Preserved alpha.2's successful 48/48 material/form cases, TextObject
+  restoration, and all earlier extended-field results without weakening exact
+  binary, ownership, readback, cleanup, or evidence gates.
+
 ## 0.2.1-alpha.2
 
 - Fixed the strict Linux acceptance harness's TextObject cleanup. When the

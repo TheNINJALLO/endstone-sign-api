@@ -36,7 +36,7 @@ REQUIRED_PROBES = {
     "player_reconnect", "server_restart_persistence",
 }
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
-EXPECTED_TESTER_VERSION = "0.2.1a2"
+EXPECTED_TESTER_VERSION = "0.2.1a3"
 
 
 def file_sha256(path: Path) -> str:

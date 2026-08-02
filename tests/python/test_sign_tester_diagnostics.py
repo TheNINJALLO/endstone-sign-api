@@ -376,6 +376,10 @@ class FakeMatrixBridge:
 
 
 class FakeFullSystemBridge(FakeMatrixBridge):
+    def __init__(self, dimension: FakeMatrixDimension) -> None:
+        super().__init__(dimension)
+        self.editor_lock_expirations = 0
+
     @staticmethod
     def _caps() -> dict[str, bool]:
         return {
@@ -477,6 +481,16 @@ class FakeFullSystemBridge(FakeMatrixBridge):
         if locked_for_editing_xuid is not None:
             snapshot["locked_for_editing_xuid"] = locked_for_editing_xuid or None
         return self._advance(snapshot)
+
+    def expire_transient_editor_locks(self) -> None:
+        """Simulate BDS clearing a synthetic lock between scheduled ticks."""
+        for snapshot in self.snapshots.values():
+            if int(snapshot.get("locked_for_editing_by", -1)) < 0:
+                continue
+            snapshot["locked_for_editing_by"] = -1
+            snapshot["locked_for_editing_xuid"] = None
+            self._advance(snapshot)
+            self.editor_lock_expirations += 1
 
     def replace(
         self,
@@ -918,7 +932,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -978,7 +992,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1021,7 +1035,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1084,7 +1098,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = LyingRemovalBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1128,7 +1142,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1174,7 +1188,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1221,6 +1235,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
 
         for phase in PLUGIN_MODULE.RUN_PROBE_PHASES:
             plugin._matrix_run_probe_tick(context, phase)
+            bridge.expire_transient_editor_locks()
 
         run_results = {
             step["operation"]: step["status"] for step in report["run_steps"]
@@ -1237,6 +1252,14 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
         self.assertEqual(terminal[-1][0], "completed")
         self.assertTrue(report["run_probe"]["move"]["owned_sign"])
+        self.assertEqual(bridge.editor_lock_expirations, 0)
+        operations = [step["operation"] for step in report["run_steps"]]
+        self.assertEqual(operations.count("capture_editor_lock"), 1)
+        self.assertEqual(operations.count("capture_editor_unlock"), 1)
+        self.assertEqual(
+            operations.index("capture_editor_unlock"),
+            operations.index("capture_editor_lock") + 1,
+        )
         source = report["cases"][0]
         source_sign = source["sign"]
         self.assertEqual(
@@ -1264,7 +1287,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1318,7 +1341,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1366,7 +1389,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1408,7 +1431,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         config = PLUGIN_MODULE.load_acceptance_config()
         platform = PLUGIN_CLASS._platform()
         matrix = PLUGIN_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform=platform,
             operator="tester",
             dimension="Overworld",
@@ -1433,7 +1456,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
         stage.update(
             {
-                "tester_version": "0.2.1a2",
+                "tester_version": "0.2.1a3",
                 "matrix_run_id": matrix["run_id"],
                 "matrix_config_sha256": matrix["config_sha256"],
                 "world_name": "test-world",
@@ -1470,7 +1493,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a2",
+            plugin_version="0.2.1a3",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",

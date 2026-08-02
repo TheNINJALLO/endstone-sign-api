@@ -20,7 +20,7 @@
 namespace py = pybind11;
 
 #ifndef ENDSTONE_SIGN_PYTHON_VERSION
-#define ENDSTONE_SIGN_PYTHON_VERSION "0.2.1a2"
+#define ENDSTONE_SIGN_PYTHON_VERSION "0.2.1a3"
 #endif
 
 namespace endstone_sign {

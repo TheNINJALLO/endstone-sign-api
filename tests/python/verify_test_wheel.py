@@ -23,7 +23,7 @@ EXPECTED_ENTRY = "sign-tester"
 EXPECTED_TARGET = "endstone_sign_tester:SignApiTesterPlugin"
 EXPECTED_COMMANDS = {"signprobe"}
 EXPECTED_DEPENDENCIES = ["sign_api"]
-EXPECTED_VERSION = "0.2.1a2"
+EXPECTED_VERSION = "0.2.1a3"
 EXPECTED_BRIDGE = "_endstone_sign_live"
 EXPECTED_TESTER_FILES = {
     "endstone_sign_tester/automation.py",

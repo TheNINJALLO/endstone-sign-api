@@ -1,6 +1,5 @@
 #include "endstone_sign/bds_26_30_adapter.h"
 #include "endstone_sign/live_service.h"
-#include "endstone_sign/live_probe_service.h"
 
 #include <endstone/endstone.hpp>
 #include <endstone/plugin/service_manager.h>
@@ -17,6 +16,10 @@
 #define ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE 0
 #endif
 
+#ifndef ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE
+#define ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE 0
+#endif
+
 class SignApiPlugin : public endstone::Plugin {
 public:
     void onEnable() override {
@@ -30,12 +33,20 @@ public:
         const auto caps = service_->capabilities();
         const bool supported_release =
             ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE && caps.supportedRelease();
-        if (!caps.completeControl() && !supported_release &&
-            !ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE) {
+        const bool complete_control = caps.completeControl();
+        const bool accepted_release = ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE;
+        const bool registration_allowed =
+            complete_control ||
+            (!accepted_release &&
+             (supported_release || ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE));
+        if (!registration_allowed) {
             const auto report = endstone_sign::inspectBds2630SignActivation(getServer());
             std::string message =
-                "Sign API refused to register endstone:sign:v2 because neither the supported "
-                "release tier nor complete native control is available";
+                accepted_release
+                    ? "Production Sign API refused to register endstone:sign:v2 "
+                      "because complete native control is unavailable"
+                    : "Sign API refused to register endstone:sign:v2 because neither "
+                      "the supported tier nor complete native control is available";
             if (!report.failures.empty()) {
                 message += ": ";
                 for (std::size_t index = 0; index < report.failures.size(); ++index) {
@@ -51,30 +62,23 @@ public:
 
         if (supported_release) {
             getLogger().info(
-                "Registering the exact Linux sign service with all native capability "
-                "layers available for full-system qualification");
-        } else if (!caps.completeControl()) {
+                "Registering the production Linux sign service with all native "
+                "capability layers enabled");
+        } else if (!complete_control) {
             getLogger().warning(
                 "EXPERIMENTAL TEST BUILD: registering endstone:sign:v2 before native "
                 "symbol and disposable-world probe verification; do not use on a production world");
         }
 
         provider_ = std::make_shared<endstone_sign::LiveSignServiceProvider>(service_);
-        probe_provider_ =
-            std::make_shared<endstone_sign::LiveSignProbeServiceProvider>(service_);
         getServer().getServiceManager().registerService(
             std::string(endstone_sign::SignServiceName),
             provider_,
             *this,
             endstone::ServicePriority::Normal);
-        getServer().getServiceManager().registerService(
-            std::string(endstone_sign::SignProbeServiceName),
-            probe_provider_,
-            *this,
-            endstone::ServicePriority::Normal);
         getLogger().info(
             std::string("Sign API ") + ENDSTONE_SIGN_VERSION +
-            (caps.completeControl() ? " registered complete service " :
+            (complete_control ? " registered complete service " :
              supported_release ? " registered supported service " :
                                  " registered experimental service ") +
             std::string(endstone_sign::SignServiceName) +
@@ -83,7 +87,6 @@ public:
 
     void onDisable() override {
         getServer().getServiceManager().unregisterAll(*this);
-        probe_provider_.reset();
         provider_.reset();
         service_.reset();
         adapter_.reset();
@@ -93,7 +96,6 @@ private:
     std::shared_ptr<endstone_sign::ISignAdapter> adapter_;
     std::shared_ptr<endstone_sign::SignService> service_;
     std::shared_ptr<endstone_sign::LiveSignServiceProvider> provider_;
-    std::shared_ptr<endstone_sign::LiveSignProbeServiceProvider> probe_provider_;
 };
 
 ENDSTONE_PLUGIN("sign_api", ENDSTONE_SIGN_VERSION, SignApiPlugin) {

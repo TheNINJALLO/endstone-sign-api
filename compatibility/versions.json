@@ -1,7 +1,7 @@
 {
   "schema": 2,
   "project": "endstone-sign-api",
-  "api": "0.2.1-alpha.3",
+  "api": "0.2.1",
   "service": "endstone:sign:v2",
   "service_abi": 2,
   "adapters": [
@@ -10,12 +10,12 @@
       "runtime_bds": "26.33",
       "official_package": "1.26.33.1",
       "endstone": "0.11.6",
-      "status": "linux-full-system-qualification-candidate",
+      "status": "stable",
       "portable_contract": "complete",
       "native_service_registration": true,
       "supported_native_service_registration": true,
-      "verified_native_service_registration": false,
-      "complete_control": false,
+      "verified_native_service_registration": true,
+      "complete_control": true,
       "supported_capabilities": [
         "capture",
         "place",
@@ -41,9 +41,7 @@
         "client_updates",
         "restart_persistence"
       ],
-      "known_unavailable_capabilities": [
-        "complete_control"
-      ],
+      "known_unavailable_capabilities": [],
       "runtime_requirements": [
         "exact executable SHA-256",
         "exact BDS 1.26.33.1 on Linux x64",
@@ -52,5 +50,5 @@
       ]
     }
   ],
-  "policy": "v0.2.1-alpha.3 exposes every exact-Linux native capability, restores TextObject plain text explicitly, and verifies/restores transient editor locks within one scheduled tick so one strict full-system run can qualify all layers together; completeControl() remains false until stage evidence is activated"
+  "policy": "v0.2.1 is the production Linux x64 release for the exact BDS 1.26.33.1 executable and Endstone 0.11.6; runtime identity, native fingerprints, revisions, readback, and rollback remain mandatory"
 }

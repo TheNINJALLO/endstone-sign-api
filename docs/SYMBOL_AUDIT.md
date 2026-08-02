@@ -1,98 +1,68 @@
-# Exact sign symbol audit
+# Exact native boundary audit
 
-## Scope
+## Supported identity
 
-Audit Windows and Linux independently against the official BDS `1.26.33.1` executables. Never reuse an RVA, vtable offset, class layout, or byte pattern from another Bedrock build.
+The production native adapter supports only Linux x86-64, official BDS package
+`1.26.33.1`, runtime `26.33`, and Endstone `0.11.6`. Addresses, layouts, vtable
+positions, and byte fingerprints are never reused for another Bedrock build.
 
-## Required behavior anchors
+The running `bedrock_server` must match:
 
-The manifest requires proof for:
-
-- full sign save and load;
-- message and raw-message reads;
-- text color, glow, hidden outline, wax, and edit-lock reads;
-- server-side text changes;
-- color, glow, hidden outline, wax, lock, and unlock writes;
-- native editor opening;
-- player text update interception;
-- block-actor client update notification.
-
-A capability may be implemented through a behavior-equivalent exact function, but the manifest note must explain that path.
-
-## Per-symbol acceptance
-
-For each entry:
-
-1. Locate the candidate in the exact executable.
-2. Confirm its full signature and calling convention.
-3. Confirm the candidate's behavior in disassembly or decompilation.
-4. Confirm callers, side effects, and relevant constants or data flows.
-5. Record its RVA and a short instruction fingerprint.
-6. Verify the fingerprint resolves uniquely in that executable.
-7. Write a concise public note without copying private source or large disassembly.
-8. Set `resolved`, `unique`, `signature_verified`, and `behavior_verified` only after the checks pass.
-
-Function size and a unique byte pattern are not sufficient behavior proof.
-
-## Static candidate ledger
-
-`native/audits/linux-x64-1.26.33.1-text-symbol-candidates.json` records the
-three byte ranges used by the alpha.6 experimental Linux text bridge. It has a
-candidate-only schema that is deliberately incompatible with the activation
-manifests. Validate its structure, blocked-manifest binding, and adapter
-constant binding without a BDS executable:
-
-```bash
-python tools/verify_native_symbol_candidates.py
+```text
+SHA-256  61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375
+Size     232842872 bytes
 ```
 
-When the exact official executable is available locally, audit its identity,
-ELF executable-range mapping, full range hashes, and unique entry
-fingerprints offline:
+## Reviewed behavior anchors
 
-```bash
-python tools/verify_native_symbol_candidates.py /path/to/bedrock_server
-```
+The adapter guards the native boundaries used for:
 
-Even a passing exact-ELF audit is only static candidate byte evidence. The
-tool is read-only, does not populate `native/manifests/`, and cannot satisfy
-signature, ABI, behavior, hook, or disposable-world gates.
+- complete sign save/load and actor capture;
+- front/back message and raw-message access;
+- filtered text and TextObject JSON conversion;
+- color, glow, hidden outline, formatting, owner, wax, and editor-lock state;
+- server-side text and presentation changes;
+- editor request dispatch;
+- player text-update interception;
+- block-actor dirty marking and client notification;
+- structural replacement, removal, clone, move, and rollback.
 
-## Linux TextObject serializer boundary
+Each boundary is tied to the exact executable range and the calling or
+representation contract used by the adapter. A version string by itself is not
+accepted.
 
-The v0.2.1-alpha.1 and later Linux candidates additionally call the exact BDS
-`TextObjectRoot` JSON serializer at RVA `0x09DD50D0`. The complete 122-byte
-function fingerprint is
-`9b385769e1291cf163e38eea2a0ed7f8527894af81f3201cff2889262486b58a`.
-Review confirmed that it creates the Bedrock `rawtext` object and invokes each
-native child object's JSON conversion. The adapter validates the executable
-segment and full fingerprint before exposing any native capability; it commits
-neither the executable nor disassembly.
+## Representation safeguards
 
-## ABI acceptance
+The Linux implementation validates its `SignBlockActor` and text-side
+assumptions before reporting readiness. Short native strings stay within the
+accepted representation boundary, and TextObject data uses Bedrock’s native
+`rawtext` JSON serializer rather than treating rendered text as canonical JSON.
 
-Record and review:
+The serializer boundary is additionally protected by its executable range and
+complete function fingerprint.
 
-- the `SignBlockActor` base offset used by the bridge;
-- the exact underlying size and values of `SignTextSide`;
-- the color argument/return contract;
-- platform calling-convention notes;
-- any class or helper declaration used across the ABI.
+## Player-edit interception
 
-Avoid direct member access when a verified function call can provide the same behavior.
+The stable hook:
 
-## Player edit hook
+- observes front and back player edits;
+- builds before and proposed-after snapshots;
+- publishes a cancellable event before native mutation;
+- skips the original mutation when cancelled;
+- preserves the original native call exactly when accepted;
+- avoids recursion for API-originated writes;
+- removes hook/listener state during shutdown.
 
-The hook must:
+## Runtime failure behavior
 
-- observe front and back edits;
-- construct the before and candidate-after snapshots;
-- publish a cancellable event before the original mutation;
-- skip the original mutation when cancelled;
-- preserve the original call exactly when accepted;
-- remove lock/listener state when the player disconnects;
-- avoid recursion when the API itself performs a write.
+If executable identity, a required fingerprint, native actor access, the player
+hook, or another required capability is unavailable, `completeControl()` is
+false. The production plugin then refuses to present a complete service for
+that environment.
 
 ## Public-data boundary
 
-Do not commit binaries, PDBs, private generated headers, whole symbol tables, decompiler output, or large disassembly blocks. Commit only the minimal exact manifest and bridge needed by the project.
+The repository and release artifacts never redistribute BDS executables,
+PDB/debug databases, private generated headers, full symbol tables, decompiler
+output, or large disassembly blocks. Public materials contain only the minimum
+identity and behavioral descriptions required to document the supported API.

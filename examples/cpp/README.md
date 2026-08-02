@@ -1,29 +1,27 @@
 # C++ plugin integration examples
 
-Endstone Sign API v0.2.1-alpha.3 publishes the typed service `endstone:sign:v2` with
-service ABI `2`. Add the release `include/` directory to your plugin build,
-link/load after the Endstone plugin named `sign_api`, and load
-`endstone_sign::LiveSignService` during `onEnable()`.
+Endstone Sign API `v0.2.1` publishes `endstone:sign:v2` with service ABI `2`.
+Add the SDK `include/` directory to your plugin, load
+`endstone_sign::LiveSignService` through Endstone’s `ServiceManager` during
+`onEnable()`, and disable your integration cleanly if the service or required
+capabilities are unavailable.
 
 [`plugin_integration_examples.cpp`](plugin_integration_examples.cpp) contains
-three reusable patterns:
+production-oriented patterns for:
 
-- a chest-shop display that renders item, unit price, and current stock;
-- a two-way Discord bridge: API change events enqueue outbound posts, while an
-  inbound Discord callback schedules a sign write on the server thread;
-- a scheduler-driven moving-message sign with revision-safe frame updates.
+- a chest-shop sign that displays the item, price, and live container stock;
+- successful sign API changes queued to a Discord worker;
+- inbound Discord posts scheduled onto the server thread and displayed on a
+  configured sign;
+- scheduler-driven moving announcements with revision-safe frame changes.
 
-Every consumer must require `capabilities().supportedRelease()` and then check
-each optional capability it uses. Capture immediately before writing, pass the
-captured revision, run calls on Endstone's primary thread, and handle every
-non-`applied` result.
+Every integration should capture immediately before writing, pass the captured
+revision, call the live API only on Endstone’s primary thread, request client
+updates and persistence where needed, and inspect every operation result.
 
-Discord HTTP/WebSocket work must stay off the server thread. The event listener
-should only enqueue a small immutable payload; schedule inbound Discord changes
-back onto the primary thread before calling the API. Direct player sign edits
-may be mirrored when `player_edit_events` is true and a listener is registered.
+Discord HTTP/WebSocket work must stay off the server thread. Event listeners
+should copy a small immutable payload into a queue and return. Schedule inbound
+Discord changes back onto the primary thread before calling the service.
 
-The v0.2.1-alpha.3 candidate advertises text objects, color, glow, wax, editor
-locking/opening, player edit interception, and restart-persistence coverage for
-the one full-system Linux qualification. Production consumers must still check
-each capability and wait for the accepted stable release before relying on it.
+The stable API plugin registers no commands. Consumer plugins own their command
+names, permissions, validation, configuration, and gameplay policy.

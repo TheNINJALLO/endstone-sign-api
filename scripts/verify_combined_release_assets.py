@@ -3,35 +3,21 @@
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 
 
 SLUG = "endstone-sign-api"
-WHEEL_PREFIX = "endstone_sign_tester"
-
-
-def pep440_version(release: str) -> str:
-    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)\.(\d+))?", release)
-    if not match:
-        raise SystemExit(f"Unsupported release version: {release!r}")
-    base, phase, serial = match.groups()
-    if phase is None:
-        return base
-    return f"{base}{ {'alpha': 'a', 'beta': 'b', 'rc': 'rc'}[phase] }{serial}"
 
 
 def expected_assets(slug: str, release: str, bds: str) -> set[str]:
     if slug != SLUG:
         raise SystemExit(f"Unsupported project slug: {slug!r}")
-    wheel_version = pep440_version(release)
     stem = f"{slug}-v{release}-bds-{bds}"
     plugin_stem = f"endstone_sign_bds_{bds.replace('.', '_')}"
     return {
         f"{plugin_stem}.so",
         f"{stem}-linux-x64.zip",
         f"{stem}-linux-x64.sha256",
-        f"{WHEEL_PREFIX}-{wheel_version}-cp314-cp314-linux_x86_64.whl",
     }
 
 

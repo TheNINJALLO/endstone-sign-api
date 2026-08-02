@@ -9,13 +9,11 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 from typing import Callable, Mapping, Sequence
 
 
@@ -300,15 +298,6 @@ def validate_generated_materials(
         raise VerificationError(f"{label} differs from the inventory ({'; '.join(details)})")
 
 
-def _load_module(name: str, path: Path) -> ModuleType:
-    specification = importlib.util.spec_from_file_location(name, path)
-    if specification is None or specification.loader is None:
-        raise VerificationError(f"could not load local module {path}")
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    return module
-
-
 def _generate_materials(
     materials: Sequence[str],
     generator: Callable[[str, str], str],
@@ -330,7 +319,7 @@ def _generate_materials(
 
 
 def verify_static_generators(inventory: IdentifierInventory) -> None:
-    """Check the portable Python API and packaged tester against the inventory."""
+    """Check the portable Python API against the exact identifier inventory."""
     python_source = str(ROOT / "python")
     if python_source not in sys.path:
         sys.path.insert(0, python_source)
@@ -350,24 +339,6 @@ def verify_static_generators(inventory: IdentifierInventory) -> None:
         _generate_materials(core_materials, core_generator),
         inventory,
     )
-
-    tester = _load_module(
-        "_endstone_sign_inventory_tester_automation",
-        ROOT
-        / "examples"
-        / "python"
-        / "sign_api_tester_plugin"
-        / "src"
-        / "endstone_sign_tester"
-        / "automation.py",
-    )
-    tester_materials = tuple(tester.MATERIALS)
-    validate_generated_materials(
-        "test-wheel generator",
-        _generate_materials(tester_materials, tester.sign_identifier),
-        inventory,
-    )
-
 
 def scan_binary(
     path: Path,
@@ -460,7 +431,7 @@ def main() -> int:
         print(
             "STATIC identifier inventory verification PASSED: "
             f"{len(inventory.identifiers)} canonical identifiers; "
-            "portable core and test-wheel generators match"
+            "portable core generator matches"
         )
         if args.server_executable is None:
             print(

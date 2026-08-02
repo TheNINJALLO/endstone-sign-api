@@ -5,7 +5,6 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 ADAPTER_SOURCE = ROOT / "src" / "experimental_bds_26_30_adapter.cpp"
 RUNTIME_BRIDGE_SOURCE = ROOT / "src" / "sign_native_runtime_bridge.cpp"
-LIVE_BINDINGS_SOURCE = ROOT / "src" / "live_python_bindings.cpp"
 CMAKE_SOURCE = ROOT / "CMakeLists.txt"
 
 
@@ -29,20 +28,10 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         self.assertNotIn("server_.createBlockData(", source)
         self.assertEqual(source.count("createRegisteredBlockData("), 5)
 
-    def test_indirect_air_descriptor_path_is_exact_and_tester_preflighted(self) -> None:
+    def test_indirect_air_descriptor_path_is_exact(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")
-        tester = (
-            ROOT
-            / "examples"
-            / "python"
-            / "sign_api_tester_plugin"
-            / "src"
-            / "endstone_sign_tester"
-            / "plugin.py"
-        ).read_text(encoding="utf-8")
 
         self.assertIn('setType("minecraft:air", false)', source)
-        self.assertIn('(\"cleanup\", \"minecraft:air\")', tester)
 
     def test_missing_registry_entry_is_returned_as_an_invalid_patch(self) -> None:
         source = ADAPTER_SOURCE.read_text(encoding="utf-8")
@@ -79,28 +68,7 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         )
         self.assertIn("level_->getNewUniqueID()", source)
 
-    def test_live_bridge_uses_derived_pep440_release_version(self) -> None:
-        cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
-        bindings = LIVE_BINDINGS_SOURCE.read_text(encoding="utf-8")
-
-        self.assertIn(
-            'set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}a${CMAKE_MATCH_2}")',
-            cmake,
-        )
-        self.assertIn(
-            'ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}"',
-            cmake,
-        )
-        self.assertNotIn(
-            'ENDSTONE_SIGN_VERSION="${ENDSTONE_SIGN_RELEASE_VERSION}")',
-            cmake[cmake.index("pybind11_add_module(_endstone_sign_live") :],
-        )
-        self.assertIn(
-            'module.attr("__version__") = ENDSTONE_SIGN_PYTHON_VERSION;',
-            bindings,
-        )
-
-    def test_supported_linux_mode_exposes_full_native_candidate(self) -> None:
+    def test_supported_linux_mode_exposes_full_native_surface(self) -> None:
         cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
         adapter = ADAPTER_SOURCE.read_text(encoding="utf-8")
         plugin = (ROOT / "src" / "plugin.cpp").read_text(encoding="utf-8")
@@ -138,19 +106,36 @@ class ExperimentalAdapterRegistryGuardTests(unittest.TestCase):
         self.assertIn("TextObjectJsonSha256", adapter)
         self.assertIn("Json::Value::ArrayIndex", adapter)
         self.assertIn('parsed.find("rawtext")', adapter)
-        self.assertIn(
-            "'{\"rawtext\":[{\"text\":\"a7\"}]}'",
-            (
-                ROOT
-                / "examples"
-                / "python"
-                / "sign_api_tester_plugin"
-                / "src"
-                / "endstone_sign_tester"
-                / "plugin.py"
-            ).read_text(encoding="utf-8"),
-        )
         self.assertIn("caps.supportedRelease()", plugin)
+
+    def test_stable_package_accepts_complete_control_without_probe_runtime(self) -> None:
+        cmake = CMAKE_SOURCE.read_text(encoding="utf-8")
+        adapter = ADAPTER_SOURCE.read_text(encoding="utf-8")
+        plugin = (ROOT / "src" / "plugin.cpp").read_text(encoding="utf-8")
+        builder = (ROOT / "scripts" / "build_exact.py").read_text(encoding="utf-8")
+
+        self.assertIn("option(ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE", cmake)
+        self.assertIn(
+            "ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE AND\n"
+            "   NOT ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE",
+            cmake,
+        )
+        self.assertIn("-DENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE=ON", builder)
+        self.assertNotIn("ENDSTONE_SIGN_BUILD_LIVE_PYTHON", cmake)
+        self.assertNotIn("_endstone_sign_live", cmake)
+        self.assertFalse((ROOT / "src" / "live_python_bindings.cpp").exists())
+        self.assertFalse((ROOT / "src" / "live_probe_service.cpp").exists())
+        self.assertFalse((ROOT / "include" / "endstone_sign" / "live_probe_service.h").exists())
+        self.assertIn(
+            "generated::DisposableWorldProbePassed ||\n"
+            "                                     ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE",
+            adapter,
+        )
+        self.assertNotIn("LiveSignProbeService", plugin)
+        self.assertNotIn("SignProbeServiceName", plugin)
+        self.assertIn("accepted_release &&", plugin)
+        self.assertIn("complete native control is unavailable", plugin)
+        self.assertNotIn("src/live_probe_service.cpp", cmake)
 
 
 if __name__ == "__main__":

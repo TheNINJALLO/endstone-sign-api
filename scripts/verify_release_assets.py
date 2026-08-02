@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-"""Verify one platform's exact Sign API release assets before publication."""
+"""Verify one platform's production Sign API release assets."""
 from __future__ import annotations
 
 import argparse
-import base64
-import configparser
-import csv
-from email.parser import Parser
 import hashlib
-from io import BytesIO, StringIO
 import json
 from pathlib import Path, PurePosixPath
 import re
@@ -18,9 +13,6 @@ from zipfile import ZipFile
 
 
 SLUG = "endstone-sign-api"
-WHEEL_PREFIX = "endstone_sign_tester"
-BRIDGE_MODULE = "_endstone_sign_live"
-TESTER_PACKAGE = PurePosixPath("endstone_sign_tester")
 SUPPORTED_BDS = {"1.26.33"}
 SUPPORTED_PLATFORMS = {"linux-x64", "windows-x64"}
 EXPECTED_API_MODULES = {
@@ -42,43 +34,8 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def sha256_bytes(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
-
-
-def verify_native_format(payload: bytes, platform: str, label: str) -> None:
-    if platform.startswith("windows"):
-        if len(payload) < 0x40 or not payload.startswith(b"MZ"):
-            raise SystemExit(f"Unexpected PE format for {label}")
-        pe_offset = int.from_bytes(payload[0x3C:0x40], "little")
-        if pe_offset + 26 > len(payload) or payload[pe_offset : pe_offset + 4] != b"PE\0\0":
-            raise SystemExit(f"Invalid PE header for {label}")
-        if int.from_bytes(payload[pe_offset + 4 : pe_offset + 6], "little") != 0x8664:
-            raise SystemExit(f"PE binary is not x86-64: {label}")
-        optional_size = int.from_bytes(payload[pe_offset + 20 : pe_offset + 22], "little")
-        if optional_size < 2 or int.from_bytes(
-            payload[pe_offset + 24 : pe_offset + 26], "little"
-        ) != 0x20B:
-            raise SystemExit(f"PE binary is not PE32+ x86-64: {label}")
-        return
-    if (
-        len(payload) < 20
-        or not payload.startswith(b"\x7fELF")
-        or payload[4] != 2
-        or payload[5] != 1
-        or int.from_bytes(payload[18:20], "little") != 62
-    ):
-        raise SystemExit(f"ELF binary is not little-endian x86-64: {label}")
-
-
-def pep440_version(release: str) -> str:
-    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)\.(\d+))?", release)
-    if not match:
-        raise SystemExit(f"Unsupported release version: {release!r}")
-    base, phase, serial = match.groups()
-    if phase is None:
-        return base
-    return f"{base}{ {'alpha': 'a', 'beta': 'b', 'rc': 'rc'}[phase] }{serial}"
+def sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
 
 
 def safe_archive_path(path: str) -> bool:
@@ -91,130 +48,26 @@ def safe_archive_path(path: str) -> bool:
     )
 
 
-def verify_checksum_file(checksums: Path, expected: dict[str, str]) -> None:
-    declared: dict[str, str] = {}
-    for line in checksums.read_text(encoding="utf-8").splitlines():
-        parts = line.split(maxsplit=1)
-        if len(parts) != 2 or not re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
-            raise SystemExit(f"Malformed checksum line in {checksums}: {line!r}")
-        name = parts[1].lstrip(" *")
-        if name in declared:
-            raise SystemExit(f"Duplicate checksum entry in {checksums}: {name}")
-        declared[name] = parts[0].casefold()
-    if declared != expected:
-        raise SystemExit(
-            f"Checksum manifest mismatch in {checksums}: expected {expected}, got {declared}"
-        )
-
-
-def verify_record(archive: ZipFile, names: list[str]) -> None:
-    record_files = [name for name in names if name.endswith(".dist-info/RECORD")]
-    if len(record_files) != 1:
-        raise SystemExit(f"Tester wheel must contain one RECORD, found {record_files}")
-    rows = list(csv.reader(StringIO(archive.read(record_files[0]).decode("utf-8"))))
-    if any(len(row) != 3 for row in rows):
-        raise SystemExit("Tester wheel RECORD contains a malformed row")
-    recorded = {row[0]: (row[1], row[2]) for row in rows}
-    if len(recorded) != len(rows) or set(recorded) != set(names):
-        raise SystemExit("Tester wheel RECORD file set does not match archive contents")
-    for name in names:
-        declared_hash, declared_size = recorded[name]
-        if name == record_files[0]:
-            if declared_hash or declared_size:
-                raise SystemExit("Tester wheel RECORD must not hash itself")
-            continue
-        payload = archive.read(name)
-        digest = base64.urlsafe_b64encode(hashlib.sha256(payload).digest()).rstrip(b"=").decode()
-        if declared_hash != f"sha256={digest}" or declared_size != str(len(payload)):
-            raise SystemExit(f"Tester wheel RECORD mismatch for {name}")
-
-
-def verify_wheel(
-    payload: bytes,
-    *,
-    filename: str,
-    platform: str,
-    version: str,
-    expected_bridge: bytes,
-) -> None:
-    wheel_platform = "win_amd64" if platform.startswith("windows") else "linux_x86_64"
-    expected_tag = f"cp314-cp314-{wheel_platform}"
-    expected_marker = ".cp314-" if platform.startswith("windows") else ".cpython-314-"
-    with ZipFile(BytesIO(payload)) as archive:
-        bad = archive.testzip()
-        if bad:
-            raise SystemExit(f"Corrupt tester wheel member: {bad}")
-        names = [item.filename for item in archive.infolist() if not item.is_dir()]
-        if len(names) != len(set(names)):
-            raise SystemExit("Tester wheel contains duplicate file names")
-        unsafe = [name for name in names if not safe_archive_path(name)]
-        if unsafe:
-            raise SystemExit(f"Tester wheel contains unsafe paths: {unsafe}")
-        verify_record(archive, names)
-
-        wheel_files = [name for name in names if name.endswith(".dist-info/WHEEL")]
-        if len(wheel_files) != 1:
-            raise SystemExit("Tester wheel must contain exactly one WHEEL metadata file")
-        wheel_metadata = Parser().parsestr(archive.read(wheel_files[0]).decode("utf-8"))
-        if wheel_metadata.get("Root-Is-Purelib") != "false":
-            raise SystemExit("Tester wheel with a native bridge cannot be pure Python")
-        if wheel_metadata.get_all("Tag", []) != [expected_tag]:
-            raise SystemExit(f"Tester wheel tag mismatch: {wheel_metadata.get_all('Tag', [])}")
-        if not filename.endswith(f"-{expected_tag}.whl"):
-            raise SystemExit(f"Tester wheel filename does not match tag {expected_tag}")
-
-        metadata_files = [name for name in names if name.endswith(".dist-info/METADATA")]
-        if len(metadata_files) != 1:
-            raise SystemExit("Tester wheel must contain exactly one METADATA file")
-        metadata = Parser().parsestr(archive.read(metadata_files[0]).decode("utf-8"))
-        if metadata.get("Name") != "endstone-sign-tester":
-            raise SystemExit(f"Unexpected tester project name: {metadata.get('Name')!r}")
-        if metadata.get("Version") != pep440_version(version):
-            raise SystemExit(f"Unexpected tester version: {metadata.get('Version')!r}")
-        if metadata.get("Requires-Python") != "==3.14.*":
-            raise SystemExit(f"Unexpected Requires-Python: {metadata.get('Requires-Python')!r}")
-        if metadata.get_all("Requires-Dist", []) != ["endstone==0.11.6"]:
-            raise SystemExit(f"Unexpected tester dependencies: {metadata.get_all('Requires-Dist', [])}")
-
-        entry_files = [name for name in names if name.endswith(".dist-info/entry_points.txt")]
-        if len(entry_files) != 1:
-            raise SystemExit("Tester wheel must contain exactly one entry_points.txt")
-        parser = configparser.ConfigParser()
-        parser.optionxform = str
-        parser.read_string(archive.read(entry_files[0]).decode("utf-8"))
-        if parser.sections() != ["endstone"] or dict(parser["endstone"]) != {
-            "sign-tester": "endstone_sign_tester:SignApiTesterPlugin"
-        }:
-            raise SystemExit("Tester wheel has an unexpected Endstone entry point")
-
-        missing_api = EXPECTED_API_MODULES.difference(names)
-        if missing_api:
-            raise SystemExit(f"Tester wheel is missing vendored API modules: {sorted(missing_api)}")
-        required_tester_files = {
-            "endstone_sign_tester/automation.py",
-            "endstone_sign_tester/default-config.toml",
-        }
-        missing_tester = required_tester_files.difference(names)
-        if missing_tester:
-            raise SystemExit(
-                f"Tester wheel is missing automated runner files: {sorted(missing_tester)}"
-            )
-        bridges = [
-            name
-            for name in names
-            if PurePosixPath(name).parent == TESTER_PACKAGE
-            and PurePosixPath(name).name.startswith(f"{BRIDGE_MODULE}.")
-            and PurePosixPath(name).suffix.lower() in {".pyd", ".so"}
-        ]
-        if len(bridges) != 1:
-            raise SystemExit(f"Tester wheel must contain one package-local bridge, found {bridges}")
-        bridge_name = PurePosixPath(bridges[0]).name
-        if expected_marker not in bridge_name:
-            raise SystemExit(f"Tester bridge does not carry the CPython 3.14 ABI marker: {bridge_name}")
-        bridge_payload = archive.read(bridges[0])
-        verify_native_format(bridge_payload, platform, f"tester bridge {bridge_name}")
-        if bridge_payload != expected_bridge:
-            raise SystemExit("Tester wheel bridge does not match the exact staged bridge")
+def verify_native_format(payload: bytes, platform: str, label: str) -> None:
+    if platform.startswith("windows"):
+        if len(payload) < 0x40 or not payload.startswith(b"MZ"):
+            raise SystemExit(f"Unexpected PE format for {label}")
+        pe_offset = int.from_bytes(payload[0x3C:0x40], "little")
+        if pe_offset + 26 > len(payload) or payload[pe_offset : pe_offset + 4] != b"PE\0\0":
+            raise SystemExit(f"Invalid PE header for {label}")
+        if int.from_bytes(payload[pe_offset + 4 : pe_offset + 6], "little") != 0x8664:
+            raise SystemExit(f"PE binary is not x86-64: {label}")
+        if int.from_bytes(payload[pe_offset + 24 : pe_offset + 26], "little") != 0x20B:
+            raise SystemExit(f"PE binary is not PE32+ x86-64: {label}")
+        return
+    if (
+        len(payload) < 20
+        or not payload.startswith(b"\x7fELF")
+        or payload[4] != 2
+        or payload[5] != 1
+        or int.from_bytes(payload[18:20], "little") != 62
+    ):
+        raise SystemExit(f"ELF binary is not little-endian x86-64: {label}")
 
 
 def verify_linux_runtime(plugin: Path) -> None:
@@ -244,6 +97,22 @@ def verify_linux_runtime(plugin: Path) -> None:
             raise SystemExit(f"Linux plugin contains non-relocatable RPATH entries: {unsafe}")
 
 
+def verify_checksum_file(checksums: Path, expected: dict[str, str]) -> None:
+    declared: dict[str, str] = {}
+    for line in checksums.read_text(encoding="utf-8").splitlines():
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2 or not re.fullmatch(r"[0-9a-fA-F]{64}", parts[0]):
+            raise SystemExit(f"Malformed checksum line in {checksums}: {line!r}")
+        name = parts[1].lstrip(" *")
+        if name in declared:
+            raise SystemExit(f"Duplicate checksum entry in {checksums}: {name}")
+        declared[name] = parts[0].casefold()
+    if declared != expected:
+        raise SystemExit(
+            f"Checksum manifest mismatch in {checksums}: expected {expected}, got {declared}"
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--slug", required=True)
@@ -252,6 +121,7 @@ def main() -> int:
     parser.add_argument("--platform", choices=sorted(SUPPORTED_PLATFORMS), required=True)
     parser.add_argument("--release-dir", type=Path, default=Path("dist/release"))
     args = parser.parse_args()
+
     if args.slug != SLUG:
         raise SystemExit(f"Unsupported project slug: {args.slug!r}")
     if args.bds not in SUPPORTED_BDS:
@@ -259,26 +129,34 @@ def main() -> int:
 
     stem = f"{args.slug}-v{args.version}-bds-{args.bds}-{args.platform}"
     suffix = ".dll" if args.platform.startswith("windows") else ".so"
-    raw = args.release_dir / f"endstone_sign_bds_{args.bds.replace('.', '_')}{suffix}"
+    plugin_name = f"endstone_sign_bds_{args.bds.replace('.', '_')}{suffix}"
+    raw = args.release_dir / plugin_name
     archive_path = args.release_dir / f"{stem}.zip"
     checksums = args.release_dir / f"{stem}.sha256"
-    wheel_platform = "win_amd64" if args.platform.startswith("windows") else "linux_x86_64"
-    wheel = args.release_dir / (
-        f"{WHEEL_PREFIX}-{pep440_version(args.version)}-cp314-cp314-{wheel_platform}.whl"
-    )
-    for path in (raw, archive_path, wheel, checksums):
-        if not path.is_file() or path.stat().st_size == 0:
-            raise SystemExit(f"Missing or empty release asset: {path}")
-    verify_native_format(raw.read_bytes(), args.platform, str(raw))
+    expected_files = {raw.name, archive_path.name, checksums.name}
+    actual_files = {path.name for path in args.release_dir.iterdir() if path.is_file()}
+    if actual_files != expected_files:
+        raise SystemExit(
+            f"Release directory must contain exactly three production assets: "
+            f"missing={sorted(expected_files - actual_files)}, "
+            f"extra={sorted(actual_files - expected_files)}"
+        )
+    for path in (raw, archive_path, checksums):
+        if path.stat().st_size == 0:
+            raise SystemExit(f"Empty release asset: {path}")
+
+    raw_payload = raw.read_bytes()
+    verify_native_format(raw_payload, args.platform, str(raw))
+    if b"endstone:sign:probe:v1" in raw_payload or b"/signprobe" in raw_payload:
+        raise SystemExit("Production plugin contains a diagnostic probe command/service marker")
+    if args.platform == "linux-x64":
+        verify_linux_runtime(raw)
     verify_checksum_file(
         checksums,
-        {
-            raw.name: sha256_file(raw),
-            archive_path.name: sha256_file(archive_path),
-            wheel.name: sha256_file(wheel),
-        },
+        {raw.name: sha256_file(raw), archive_path.name: sha256_file(archive_path)},
     )
 
+    root = f"{stem}/"
     with ZipFile(archive_path) as archive:
         bad = archive.testzip()
         if bad:
@@ -289,127 +167,89 @@ def main() -> int:
         unsafe = [name for name in members if not safe_archive_path(name)]
         if unsafe:
             raise SystemExit(f"Release archive contains unsafe paths: {unsafe}")
-        archive_root = f"{stem}/"
-        manifests = [name for name in members if name.endswith("/PACKAGE_MANIFEST.json")]
-        if manifests != [f"{archive_root}PACKAGE_MANIFEST.json"]:
-            raise SystemExit(f"Expected one root PACKAGE_MANIFEST.json, found {manifests}")
-        manifest = json.loads(archive.read(manifests[0]))
-        expected_fields = {
-            "schema": 1,
-            "project": args.slug,
-            "version": args.version,
-            "bds": args.bds,
-            "bds_package": "1.26.33.1",
-            "endstone": "0.11.6",
-            "platform": args.platform,
+        if any(not name.startswith(root) for name in members):
+            raise SystemExit("Release archive must have exactly one versioned root directory")
+
+        required = {
+            f"{root}plugins/{plugin_name}",
+            f"{root}include/endstone_sign/sign_api.h",
+            f"{root}include/endstone_sign/live_service.h",
+            f"{root}python/endstone_sign/__init__.py",
+            f"{root}docs/API.md",
+            f"{root}docs/ARCHITECTURE.md",
+            f"{root}examples/cpp/plugin_integration_examples.cpp",
+            f"{root}examples/python/full_sign_control.py",
+            f"{root}README.md",
+            f"{root}LICENSE",
+            f"{root}CHANGELOG.md",
+            f"{root}SOURCE_RELEASE.json",
+            f"{root}compatibility/versions.json",
+            f"{root}PACKAGE_MANIFEST.json",
         }
-        for key, value in expected_fields.items():
-            if manifest.get(key) != value:
-                raise SystemExit(
-                    f"Package manifest mismatch for {key}: expected {value!r}, got {manifest.get(key)!r}"
-                )
+        missing = required.difference(members)
+        if missing:
+            raise SystemExit(f"Release archive is missing production files: {sorted(missing)}")
 
-        declared = manifest.get("files")
-        if not isinstance(declared, list):
-            raise SystemExit("PACKAGE_MANIFEST.json files must be a list")
-        declared_members: set[str] = set()
-        for entry in declared:
-            if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
-                raise SystemExit(f"Malformed package manifest entry: {entry!r}")
-            relative = entry["path"]
-            if not safe_archive_path(relative):
-                raise SystemExit(f"Unsafe path in package manifest: {relative}")
-            member = archive_root + relative
-            if member in declared_members:
-                raise SystemExit(f"Duplicate path in package manifest: {relative}")
-            declared_members.add(member)
-            try:
-                payload = archive.read(member)
-            except KeyError as error:
-                raise SystemExit(f"Manifest file missing from archive: {relative}") from error
-            if entry.get("size") != len(payload) or entry.get("sha256") != sha256_bytes(payload):
-                raise SystemExit(f"Manifest digest or size mismatch for {relative}")
-        actual_payload = set(members) - {manifests[0]}
-        if declared_members != actual_payload:
-            raise SystemExit(
-                "Archive/manifest file-set mismatch; "
-                f"missing={sorted(declared_members - actual_payload)}, "
-                f"extra={sorted(actual_payload - declared_members)}"
-            )
-        required_qualification_files = {
-            f"{archive_root}tools/validate_full_system_acceptance.py",
-            f"{archive_root}tools/verify_native_manifest.py",
-            (
-                f"{archive_root}examples/python/sign_api_tester_plugin/src/"
-                "endstone_sign_tester/automation.py"
-            ),
-            (
-                f"{archive_root}examples/python/sign_api_tester_plugin/src/"
-                "endstone_sign_tester/default-config.toml"
-            ),
-        }
-        missing_qualification_files = required_qualification_files - declared_members
-        if missing_qualification_files:
-            raise SystemExit(
-                "Complete ZIP is missing full-system qualification tooling: "
-                + ", ".join(sorted(missing_qualification_files))
-            )
-
-        primary = manifest.get("primary_plugin")
-        if not isinstance(primary, str) or archive_root + primary not in declared_members:
-            raise SystemExit(f"Invalid primary_plugin: {primary!r}")
-        if archive.read(archive_root + primary) != raw.read_bytes():
-            raise SystemExit("Raw plugin does not match the primary plugin in the ZIP")
-        bundled_wheel = f"{archive_root}plugins/{wheel.name}"
-        if manifest.get("tester_wheel") != f"plugins/{wheel.name}":
-            raise SystemExit("Package manifest tester_wheel is incorrect")
-        if bundled_wheel not in declared_members:
-            raise SystemExit("Complete ZIP is missing its tester wheel")
-        wheel_payload = archive.read(bundled_wheel)
-        if sha256_bytes(wheel_payload) != sha256_file(wheel):
-            raise SystemExit("Standalone tester wheel does not match the wheel in the ZIP")
-
-        supported_suffixes = {".dll", ".pyd"} if args.platform.startswith("windows") else {".so"}
-        native_members = [
+        forbidden_markers = (
+            "/sign_api_tester_plugin/",
+            "/endstone_sign_tester/",
+            "/native/probes/",
+            "/tools/validate_stage_probe_report.py",
+            "/tools/validate_full_system_acceptance.py",
+            "/docs/STAGE_PROBE.md",
+        )
+        forbidden = [
             name
             for name in members
-            if PurePosixPath(name).suffix.lower() in {".dll", ".pyd", ".so", ".dylib"}
+            if name.endswith(".whl")
+            or "_endstone_sign_live" in name
+            or "live_probe_service" in name
+            or any(marker in name for marker in forbidden_markers)
         ]
-        wrong_platform = [
-            name for name in native_members if PurePosixPath(name).suffix.lower() not in supported_suffixes
-        ]
-        if wrong_platform:
-            raise SystemExit(f"Archive contains native binaries for the wrong platform: {wrong_platform}")
-        for name in native_members:
-            verify_native_format(archive.read(name), args.platform, f"archive member {name}")
-        python_dir = PurePosixPath(archive_root) / "python"
-        bridges = [
-            name
-            for name in native_members
-            if PurePosixPath(name).parent == python_dir
-            and PurePosixPath(name).name.startswith(f"{BRIDGE_MODULE}.")
-        ]
-        if len(bridges) != 1:
-            raise SystemExit(f"Expected exactly one staged {BRIDGE_MODULE}, found {bridges}")
-        bridge_payload = archive.read(bridges[0])
-        verify_wheel(
-            wheel_payload,
-            filename=wheel.name,
-            platform=args.platform,
-            version=args.version,
-            expected_bridge=bridge_payload,
-        )
+        if forbidden:
+            raise SystemExit(f"Production archive contains diagnostic payloads: {forbidden}")
 
-    verify_wheel(
-        wheel.read_bytes(),
-        filename=wheel.name,
-        platform=args.platform,
-        version=args.version,
-        expected_bridge=bridge_payload,
-    )
-    if args.platform == "linux-x64":
-        verify_linux_runtime(raw)
-    print(f"Verified exact Sign API release assets for {args.platform}: {stem}")
+        archived_plugin = archive.read(f"{root}plugins/{plugin_name}")
+        if archived_plugin != raw_payload:
+            raise SystemExit("Standalone plugin does not match the SDK archive plugin")
+
+        manifest = json.loads(archive.read(f"{root}PACKAGE_MANIFEST.json"))
+        if manifest.get("version") != args.version or manifest.get("platform") != args.platform:
+            raise SystemExit("PACKAGE_MANIFEST release identity mismatch")
+        if manifest.get("primary_plugin") != f"plugins/{plugin_name}":
+            raise SystemExit("PACKAGE_MANIFEST primary plugin mismatch")
+        if "tester_wheel" in manifest:
+            raise SystemExit("Production PACKAGE_MANIFEST must not declare a tester wheel")
+        records = manifest.get("files")
+        if not isinstance(records, list):
+            raise SystemExit("PACKAGE_MANIFEST files must be a list")
+        expected_payloads = {
+            name[len(root) :]
+            for name in members
+            if name != f"{root}PACKAGE_MANIFEST.json"
+        }
+        by_path = {
+            record.get("path"): record
+            for record in records
+            if isinstance(record, dict) and isinstance(record.get("path"), str)
+        }
+        if set(by_path) != expected_payloads:
+            raise SystemExit("PACKAGE_MANIFEST file set does not match archive contents")
+        for relative, record in by_path.items():
+            payload = archive.read(f"{root}{relative}")
+            if record.get("size") != len(payload) or record.get("sha256") != sha256_bytes(payload):
+                raise SystemExit(f"PACKAGE_MANIFEST digest mismatch for {relative}")
+
+        packaged_modules = {
+            name[len(f"{root}python/") :]
+            for name in members
+            if name.startswith(f"{root}python/endstone_sign/")
+        }
+        missing_modules = EXPECTED_API_MODULES.difference(packaged_modules)
+        if missing_modules:
+            raise SystemExit(f"SDK is missing Python reference modules: {sorted(missing_modules)}")
+
+    print(f"Verified production release assets for {args.platform}: {raw.name}, {archive_path.name}, {checksums.name}")
     return 0
 
 

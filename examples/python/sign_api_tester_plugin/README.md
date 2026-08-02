@@ -9,23 +9,23 @@ Install the native plugin and matching tester wheel from the same exact
 package ZIP. Use only a backed-up disposable world: the commands place and edit
 sign blocks and may remove only cells recorded as runner-owned.
 
-## v0.2.1-alpha.2 Linux full-system qualification
+## v0.2.1-alpha.3 Linux full-system qualification
 
 The Linux-only standalone native download is named
-`endstone_sign_bds_1_26_33.so`; place it and the matching v0.2.1-alpha.2 Linux tester
+`endstone_sign_bds_1_26_33.so`; place it and the matching v0.2.1-alpha.3 Linux tester
 wheel directly in the server's `plugins/` directory. The tester also
-recognizes the long standalone filename published in alpha.3 and searches
+recognizes the long standalone filename published in legacy v0.2.0-alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
 working directory.
 
 Download the tagged prerelease and verify its platform manifest:
 
 ```bash
-gh release download v0.2.1-alpha.2 \
+gh release download v0.2.1-alpha.3 \
   --repo TheNINJALLO/endstone-sign-api \
-  --dir sign-api-0.2.1-alpha.2
-cd sign-api-0.2.1-alpha.2
-sha256sum --check endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256
+  --dir sign-api-0.2.1-alpha.3
+cd sign-api-0.2.1-alpha.3
+sha256sum --check endstone-sign-api-v0.2.1-alpha.3-bds-1.26.33-linux-x64.sha256
 ```
 
 Choose an air-filled disposable arena large enough for a 28-by-17-block
@@ -138,7 +138,7 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
@@ -172,7 +172,7 @@ the support still matches the configured block.
 
 On the exact Linux server, status must show adapter
 `bds-1.26.33.1-linux-release`, `supported_release: true`, and every capability
-except `stage_probe_passed` as true. Version 0.2.1-alpha.2 exposes both text
+except `stage_probe_passed` as true. Version 0.2.1-alpha.3 exposes both text
 sides, raw-text objects, owner, color/glow/formatting, wax, editor lock/opening,
 player/API edit events, structure/transactions, client updates, and persistence
 coverage together. `complete_control` remains false until the accepted evidence

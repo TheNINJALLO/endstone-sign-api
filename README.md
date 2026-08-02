@@ -32,7 +32,7 @@
 </p>
 
 > [!IMPORTANT]
-> `v0.2.1-alpha.2` is the final Linux x86-64 qualification candidate for exact
+> `v0.2.1-alpha.3` is the final Linux x86-64 qualification candidate for exact
 > BDS package `1.26.33.1`, runtime `26.33`, and Endstone `0.11.6`. Use a
 > backed-up disposable world for the combined release test before production.
 
@@ -77,7 +77,7 @@ flowchart LR
 
 ## 🚦 Candidate status
 
-Version 0.2.1-alpha.2 is the single full-system Linux x64 qualification
+Version 0.2.1-alpha.3 is the single full-system Linux x64 qualification
 candidate that follows stable v0.2.0. It registers `endstone:sign:v2` ABI 2 on
 exact BDS `1.26.33.1` with Endstone `0.11.6` and exposes every native layer at
 once: structure, both text sides, Bedrock raw-text objects, color/glow, wax,
@@ -92,6 +92,13 @@ revision no longer matched and the next 11 probes failed in sequence. Alpha.2
 restores those original lines explicitly before continuing, without bypassing
 revision, ownership, readback, cleanup, or evidence checks.
 
+The alpha.2 report then passed 48/48 cases and the TextObject restoration. It
+also proved the synthetic editor lock by immediate native readback, but Bedrock
+cleared that non-session lock before the separately scheduled unlock phase. The
+unlock failure caused five later source-dependent probe failures and a cleanup
+conflict. Alpha.3 performs the verified lock and revision-guarded restoration in
+one scheduled tick while retaining separate lock and unlock evidence records.
+
 The adapter loads only when the running `bedrock_server` matches the pinned
 Linux executable SHA-256
 `61995841f21baf9bfab96e0d9b0cb798501dcc9789dab68e496f3b8e3bc83375`
@@ -104,23 +111,22 @@ checkpoints, restart evidence, log, and world backup pass validation.
 
 ## 📦 Install the Linux qualification candidate
 
-The exact Linux build, asset verification, wheel smoke test, and downstream
-command tests passed in [GitHub Actions run `30725337982`](https://github.com/TheNINJALLO/endstone-sign-api/actions/runs/30725337982).
-Download the tagged prerelease and verify its platform checksums:
+Download only the tagged prerelease after its release workflow is green, then
+verify its platform checksums:
 
 | Deliverable | Verified filename |
 |---|---|
-| Complete Linux SDK package | `endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.zip` |
+| Complete Linux SDK package | `endstone-sign-api-v0.2.1-alpha.3-bds-1.26.33-linux-x64.zip` |
 | Native Endstone plugin | `endstone_sign_bds_1_26_33.so` |
-| CPython 3.14 qualification plugin | `endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl` |
-| SHA-256 manifest | `endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256` |
+| CPython 3.14 qualification plugin | `endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl` |
+| SHA-256 manifest | `endstone-sign-api-v0.2.1-alpha.3-bds-1.26.33-linux-x64.sha256` |
 
 ```bash
-gh release download v0.2.1-alpha.2 \
+gh release download v0.2.1-alpha.3 \
   --repo TheNINJALLO/endstone-sign-api \
-  --dir sign-api-0.2.1-alpha.2
-cd sign-api-0.2.1-alpha.2
-sha256sum --check endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256
+  --dir sign-api-0.2.1-alpha.3
+cd sign-api-0.2.1-alpha.3
+sha256sum --check endstone-sign-api-v0.2.1-alpha.3-bds-1.26.33-linux-x64.sha256
 ```
 
 Stop the test server, install the matching native plugin and CPython 3.14 tester
@@ -133,8 +139,8 @@ SERVER_ROOT=/srv/endstone
 install -D -m 0644 endstone_sign_bds_1_26_33.so \
   "$SERVER_ROOT/plugins/endstone_sign_bds_1_26_33.so"
 install -D -m 0644 \
-  endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl \
-  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl"
+  endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl \
+  "$SERVER_ROOT/plugins/endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl"
 cd "$SERVER_ROOT"
 endstone 2>&1 | tee acceptance-server.log
 ```
@@ -207,7 +213,7 @@ python tools/validate_full_system_acceptance.py \
   latest-matrix-report.json linux-x64-1.26.33.1-stage-probe.json \
   --server-executable ./bedrock_server \
   --plugin-binary plugins/endstone_sign_bds_1_26_33.so \
-  --tester-wheel plugins/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl \
+  --tester-wheel plugins/endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl \
   --server-log acceptance-server.evidence.log \
   --world-backup post-cleanup-world-backup.zip
 ```
@@ -469,12 +475,12 @@ python scripts/build_exact.py \
   --parallel 2
 python scripts/verify_release_assets.py \
   --slug endstone-sign-api \
-  --version 0.2.1-alpha.2 \
+  --version 0.2.1-alpha.3 \
   --bds 1.26.33 \
   --platform linux-x64 \
   --release-dir dist/release
 python tests/python/verify_test_wheel.py \
-  dist/release/endstone_sign_tester-0.2.1a2-cp314-cp314-linux_x86_64.whl
+  dist/release/endstone_sign_tester-0.2.1a3-cp314-cp314-linux_x86_64.whl
 ```
 
 These commands duplicate the source/package gates exercised by GitHub Actions.

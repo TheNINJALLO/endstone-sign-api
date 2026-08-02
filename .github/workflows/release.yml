@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  RELEASE_VERSION: 0.2.1-alpha.2
+  RELEASE_VERSION: 0.2.1-alpha.3
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
@@ -245,7 +245,7 @@ jobs:
         shell: bash
         run: |
           set -euxo pipefail
-          notes='Endstone Sign API v0.2.1-alpha.2 is the exact-Linux full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33.1. It enables every native capability together and fixes the acceptance harness to restore the original plain lines after its TextObject roundtrip, preventing a stale-revision cascade through later probes. Use only in a backed-up disposable test world and run /signprobe accept once; completeControl() remains evidence-gated until that run passes.'
+          notes='Endstone Sign API v0.2.1-alpha.3 is the exact-Linux full-system qualification candidate for Endstone 0.11.6 / BDS 1.26.33.1. It enables every native capability together, restores original plain lines after TextObject qualification, and verifies then restores the transient synthetic editor lock within one scheduled tick so Bedrock cannot clear it between probes and create a stale-revision cascade. Use only in a backed-up disposable test world and run /signprobe accept once; completeControl() remains evidence-gated until that run passes.'
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" release-assets/* --clobber
             gh release edit "$RELEASE_TAG" --prerelease --latest=false --notes "$notes"

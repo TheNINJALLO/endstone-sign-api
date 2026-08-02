@@ -27,10 +27,9 @@ SUPPORTED_BDS = {
     if isinstance(value, str) and value.count(".") == 2
 }
 BDS_PACKAGE = "1.26.33.1"
-BUILD_TARGETS = ("sign_api", "_endstone_sign_live")
+BUILD_TARGETS = ("sign_api",)
 INSTALL_COMPONENT = "sign_package"
-BRIDGE_MODULE = "_endstone_sign_live"
-REQUIRED_PYTHON = (3, 14)
+MINIMUM_PYTHON = (3, 11)
 
 
 def require(program: str, fallbacks: tuple[str, ...] = ()) -> str:
@@ -136,7 +135,7 @@ def validate_manifest(platform: str) -> Path:
 def main() -> int:
     validate_source_release()
     parser = argparse.ArgumentParser(
-        description="Build an exact BDS 1.26.33 Sign API plugin and test wheel."
+        description="Build the exact BDS 1.26.33 production Sign API plugin."
     )
     parser.add_argument("--bds", required=True, choices=sorted(SUPPORTED_BDS))
     parser.add_argument("--platform", required=True, choices=sorted(SUPPORTED_PLATFORMS))
@@ -151,9 +150,9 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    if sys.implementation.name != "cpython" or sys.version_info[:2] != REQUIRED_PYTHON:
+    if sys.implementation.name != "cpython" or sys.version_info[:2] < MINIMUM_PYTHON:
         raise SystemExit(
-            "The exact native Python bridge must be built with CPython 3.14; "
+            "The exact production builder requires CPython 3.11 or newer; "
             f"running {sys.implementation.name} "
             f"{sys.version_info.major}.{sys.version_info.minor}"
         )
@@ -183,7 +182,7 @@ def main() -> int:
     log_file = diagnostics_dir / "exact-build.log"
     conan_home = ROOT / ".conan2-ci" / args.platform
 
-    for directory in (build_dir, stage_dir, diagnostics_dir, conan_home):
+    for directory in (build_dir, stage_dir, release_dir, diagnostics_dir, conan_home):
         shutil.rmtree(directory, ignore_errors=True)
     release_dir.mkdir(parents=True, exist_ok=True)
 
@@ -271,10 +270,10 @@ def main() -> int:
         "-DENDSTONE_SIGN_BUILD_SHARED=OFF",
         "-DENDSTONE_SIGN_BUILD_PLUGIN=ON",
         "-DENDSTONE_SIGN_BUILD_NATIVE_2630=ON",
-        "-DENDSTONE_SIGN_BUILD_LIVE_PYTHON=ON",
         "-DENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=OFF",
         "-DENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=OFF",
         "-DENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=ON",
+        "-DENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE=ON",
         f"-DENDSTONE_BDS_BUILD={args.bds}",
         f"-DENDSTONE_BDS_PACKAGE={BDS_PACKAGE}",
         f"-DENDSTONE_SIGN_NATIVE_MANIFEST={manifest}",
@@ -312,25 +311,6 @@ def main() -> int:
         log_file=log_file,
     )
 
-    bridge_candidates = [
-        path
-        for path in (stage_dir / "python").glob(f"{BRIDGE_MODULE}.*")
-        if path.is_file() and path.suffix.lower() in {".pyd", ".so"}
-    ]
-    if len(bridge_candidates) != 1:
-        raise SystemExit(
-            f"Expected exactly one installed {BRIDGE_MODULE} bridge, found {bridge_candidates}"
-        )
-    run(
-        [
-            sys.executable, str(ROOT / "scripts" / "build_test_wheel.py"),
-            "--bridge", str(bridge_candidates[0]),
-            "--stage-dir", str(stage_dir),
-            "--output-dir", str(release_dir),
-        ],
-        env=env,
-        log_file=log_file,
-    )
     common = [
         "--project", PROJECT,
         "--version", VERSION,

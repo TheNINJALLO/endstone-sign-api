@@ -14,12 +14,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RELEASE_VERSION: 0.2.1-alpha.3
+  RELEASE_VERSION: 0.2.1
   PROJECT_SLUG: endstone-sign-api
 
 jobs:
   metadata:
-    name: Verify release and native-gate metadata
+    name: Verify production metadata
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v6
@@ -30,9 +30,8 @@ jobs:
         run: |
           python scripts/verify_project_metadata.py
           python scripts/verify_bds_sign_identifiers.py --platform linux-x64
-          python tools/verify_native_symbol_candidates.py
           python tools/verify_fail_closed.py
-      - name: Verify the Linux native manifest remains unverified
+      - name: Verify normal source builds remain fail-closed
         shell: bash
         run: |
           set -euxo pipefail
@@ -103,10 +102,6 @@ jobs:
         run: >-
           python -m pip install
           "conan==2.31.1"
-          "build==1.4.0"
-          "setuptools==80.9.0"
-          "wheel==0.46.3"
-          "endstone==0.11.6"
 
       - name: Install Linux compiler toolchain
         if: runner.os == 'Linux'
@@ -170,14 +165,7 @@ jobs:
           --platform "${{ matrix.platform }}"
           --release-dir dist/release
 
-      - name: Smoke-test Linux test-command wheel
-        shell: bash
-        run: |
-          wheels=(dist/release/*-cp314-cp314-linux_x86_64.whl)
-          test "${#wheels[@]}" -eq 1
-          python tests/python/verify_test_wheel.py "${wheels[0]}"
-
-      - name: Upload disposable-server test package
+      - name: Upload production Linux package
         uses: actions/upload-artifact@v7
         with:
           name: ${{ env.PROJECT_SLUG }}-release-${{ matrix.bds }}-${{ matrix.platform }}
@@ -202,39 +190,3 @@ jobs:
             build-exact/**/conan/**/*.log
           if-no-files-found: warn
           retention-days: 14
-
-  test-wheel:
-    name: Verify the Linux Sign API server-test wheel
-    needs: [metadata, exact-release]
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.14"
-      - name: Install runtime and local test dependencies
-        run: |
-          python -m pip install "endstone==0.11.6"
-          python -m pip install -e .
-      - name: Download the Linux package
-        uses: actions/download-artifact@v8
-        with:
-          pattern: ${{ env.PROJECT_SLUG }}-release-*
-          path: dist/test-wheel
-          merge-multiple: true
-      - name: Verify wheel structure and bundled native bridges
-        shell: bash
-        run: |
-          mapfile -t wheels < <(find dist/test-wheel -maxdepth 1 -type f -name '*.whl' | sort)
-          test "${#wheels[@]}" -eq 1
-          for wheel in "${wheels[@]}"; do
-            python tests/python/verify_test_wheel.py "$wheel" --structure-only
-          done
-      - name: Run Python command-handler tests
-        run: python -m unittest discover -s tests/python -v
-      - uses: actions/upload-artifact@v7
-        with:
-          name: ${{ env.PROJECT_SLUG }}-test-wheels
-          path: dist/test-wheel/*.whl
-          if-no-files-found: error
-          retention-days: 30

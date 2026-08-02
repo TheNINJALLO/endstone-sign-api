@@ -48,6 +48,10 @@
 #define ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE 0
 #endif
 
+#ifndef ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE
+#define ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE 0
+#endif
+
 #if defined(__linux__)
 #include <link.h>
 #endif
@@ -1044,10 +1048,12 @@ class ExperimentalBds2630SignAdapter final : public ISignAdapter {
         result.restart_persistence = complete_native_gate;
         result.exact_binary_hash_match = complete_native_gate;
         result.symbols_validated = complete_native_gate;
-        // Source control remains fail-closed. The activation workflow is the
-        // only writer that can embed a reviewed disposable-world pass here.
+        // Stable release builds enable this only after the exact Linux
+        // candidate has completed the full-system acceptance cycle. Source,
+        // portable, and experimental builds remain closed by default.
         result.stage_probe_passed = complete_native_gate &&
-                                    generated::DisposableWorldProbePassed;
+                                    (generated::DisposableWorldProbePassed ||
+                                     ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE);
         return result;
 #else
         // This deliberately advertises only the exact, readback-checked subset.

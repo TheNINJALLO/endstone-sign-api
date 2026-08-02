@@ -8,20 +8,31 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 option(ENDSTONE_SIGN_BUILD_TESTS "Build portable tests" ON)
 option(ENDSTONE_SIGN_BUILD_SHARED "Build the portable shared API library" ON)
 option(ENDSTONE_SIGN_BUILD_PLUGIN "Build the Endstone plugin wrapper" OFF)
-option(ENDSTONE_SIGN_BUILD_LIVE_PYTHON
-       "Build the CPython bridge bundled with the exact server-test wheel" ON)
 option(ENDSTONE_SIGN_BUILD_NATIVE_2630 "Build the guarded BDS 26.30 boundary" ON)
 option(ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE
-       "Build the unverified native bridge candidate for disposable-server probing" OFF)
+       "Build the internal unverified native bridge" OFF)
 option(ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE
-       "Build the exact Linux native bridge with all native capabilities available for qualification" OFF)
+       "Build the exact supported Linux native bridge" OFF)
+option(ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE
+       "Mark the exact supported Linux bridge as release-accepted" OFF)
 option(ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE
-       "Compile the generated, stage-verified SignBlockActor bridge" OFF)
+       "Compile the generated manifest-verified SignBlockActor bridge" OFF)
 option(ENDSTONE_SIGN_WARNINGS_AS_ERRORS "Treat project warnings as errors" ON)
+if(ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE AND
+   NOT ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE)
+    message(FATAL_ERROR
+        "The accepted native release requires ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=ON")
+endif()
+if(ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE)
+    if(WIN32 OR APPLE OR NOT UNIX)
+        message(FATAL_ERROR
+            "The accepted v0.2.1 native release is Linux x86-64 only")
+    endif()
+endif()
 set(ENDSTONE_BDS_BUILD "1.26.33" CACHE STRING "Exact Endstone runtime BDS build")
 set(ENDSTONE_BDS_PACKAGE "1.26.33.1" CACHE STRING "Exact official BDS package version")
 set(ENDSTONE_SIGN_NATIVE_MANIFEST "" CACHE FILEPATH
-    "Platform manifest used to build an experimental or verified native bridge")
+    "Platform manifest used to build the exact native bridge")
 set_property(CACHE ENDSTONE_BDS_BUILD PROPERTY STRINGS "1.26.33")
 string(REPLACE "." "_" ENDSTONE_BDS_BUILD_FILE "${ENDSTONE_BDS_BUILD}")
 
@@ -34,25 +45,6 @@ string(REPLACE "." "\\." ENDSTONE_SIGN_PROJECT_VERSION_REGEX "${PROJECT_VERSION}
 if(NOT ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^${ENDSTONE_SIGN_PROJECT_VERSION_REGEX}($|[-+])")
     message(FATAL_ERROR
         "SOURCE_RELEASE.json version '${ENDSTONE_SIGN_RELEASE_VERSION}' does not match project version '${PROJECT_VERSION}'")
-endif()
-
-# SOURCE_RELEASE.json uses release-tag spelling while Python package metadata
-# must use PEP 440 spelling. Derive the bridge version here so the native
-# module and its containing wheel cannot silently advertise different builds.
-if(ENDSTONE_SIGN_RELEASE_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)$")
-    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}")
-elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
-       "^([0-9]+\\.[0-9]+\\.[0-9]+)-alpha\\.([0-9]+)$")
-    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}a${CMAKE_MATCH_2}")
-elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
-       "^([0-9]+\\.[0-9]+\\.[0-9]+)-beta\\.([0-9]+)$")
-    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}b${CMAKE_MATCH_2}")
-elseif(ENDSTONE_SIGN_RELEASE_VERSION MATCHES
-       "^([0-9]+\\.[0-9]+\\.[0-9]+)-rc\\.([0-9]+)$")
-    set(ENDSTONE_SIGN_PYTHON_VERSION "${CMAKE_MATCH_1}rc${CMAKE_MATCH_2}")
-else()
-    message(FATAL_ERROR
-        "Cannot derive a PEP 440 bridge version from release version '${ENDSTONE_SIGN_RELEASE_VERSION}'")
 endif()
 
 set(ENDSTONE_SIGN_CORE_SOURCES
@@ -149,7 +141,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         if(ENDSTONE_SIGN_NATIVE_MANIFEST STREQUAL "" OR
            NOT EXISTS "${ENDSTONE_SIGN_NATIVE_MANIFEST}")
             message(FATAL_ERROR
-                "An exact platform manifest is required for the native bridge candidate")
+                "An exact platform manifest is required for the native bridge")
         endif()
         file(READ "${ENDSTONE_SIGN_NATIVE_MANIFEST}" ENDSTONE_SIGN_NATIVE_MANIFEST_JSON)
         string(JSON ENDSTONE_SIGN_MANIFEST_PLATFORM GET
@@ -236,11 +228,6 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
     find_package(spdlog REQUIRED)
     find_package(tomlplusplus REQUIRED)
     find_package(zstr REQUIRED)
-    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
-        set(PYBIND11_FINDPYTHON ON)
-        find_package(pybind11 CONFIG REQUIRED)
-    endif()
-
     include(FetchContent)
     FetchContent_Declare(endstone
         GIT_REPOSITORY https://github.com/EndstoneMC/endstone.git
@@ -314,7 +301,6 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
 
     set(SIGN_PLUGIN_SOURCES
         src/plugin.cpp
-        src/live_probe_service.cpp
         src/sign_native_runtime_bridge.cpp
     )
     if(ENDSTONE_SIGN_BUILD_NATIVE_2630)
@@ -357,6 +343,7 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         ENDSTONE_SIGN_NATIVE_2630=$<BOOL:${ENDSTONE_SIGN_BUILD_NATIVE_2630}>
         ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE=$<BOOL:${ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE}>
+        ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE=$<BOOL:${ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE=$<BOOL:${ENDSTONE_SIGN_VERIFIED_NATIVE_BRIDGE}>
         ENDSTONE_SIGN_VERIFIED_NATIVE_IMPLEMENTATION=$<OR:$<BOOL:${ENDSTONE_SIGN_EXPERIMENTAL_NATIVE_BRIDGE}>,$<BOOL:${ENDSTONE_SIGN_SUPPORTED_NATIVE_RELEASE}>>
         ENDSTONE_SIGN_BDS_BUILD="${ENDSTONE_BDS_BUILD}"
@@ -409,90 +396,24 @@ if(ENDSTONE_SIGN_BUILD_PLUGIN)
         )
     endif()
 
-    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
-        if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/live_python_bindings.cpp")
-            message(FATAL_ERROR
-                "Live Python bridge requested, but src/live_python_bindings.cpp is absent")
-        endif()
-        pybind11_add_module(_endstone_sign_live MODULE src/live_python_bindings.cpp)
-        set_target_properties(_endstone_sign_live PROPERTIES
-            BUILD_RPATH_USE_ORIGIN ON
-            INSTALL_RPATH ""
-            INSTALL_RPATH_USE_LINK_PATH FALSE
-            CXX_VISIBILITY_PRESET hidden
-            VISIBILITY_INLINES_HIDDEN ON
-        )
-        target_compile_features(_endstone_sign_live PRIVATE cxx_std_20)
-        target_compile_definitions(_endstone_sign_live PRIVATE
-            ENDSTONE_SIGN_PYTHON_VERSION="${ENDSTONE_SIGN_PYTHON_VERSION}")
-        target_include_directories(_endstone_sign_live PRIVATE
-            include
-            ${endstone_SOURCE_DIR}/include
-            ${endstone_SOURCE_DIR}/src
-            ${endstone_BINARY_DIR}/include
-            ${endstone_BINARY_DIR}/include/generated
-        )
-        target_link_libraries(_endstone_sign_live PRIVATE
-            endstone_sign_core
-            endstone::endstone
-            pybind11::module
-        )
-        if(UNIX)
-            target_compile_options(_endstone_sign_live PRIVATE -fms-extensions)
-            target_link_options(_endstone_sign_live PRIVATE "LINKER:--exclude-libs,ALL")
-            if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-                target_compile_options(_endstone_sign_live PRIVATE -stdlib=libc++)
-                target_link_options(_endstone_sign_live PRIVATE -stdlib=libc++)
-                target_link_libraries(_endstone_sign_live PRIVATE
-                    -static-libgcc
-                    -static-libstdc++
-                    libc++.a
-                    libc++abi.a
-                )
-            endif()
-        endif()
-        add_dependencies(sign_api _endstone_sign_live)
-        if(UNIX AND NOT APPLE)
-            add_custom_command(TARGET _endstone_sign_live POST_BUILD
-                COMMAND "${CMAKE_COMMAND}"
-                    "-DPLUGIN_FILE:FILEPATH=$<TARGET_FILE:_endstone_sign_live>"
-                    "-DNM_TOOL:FILEPATH=${CMAKE_NM}"
-                    -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/verify_no_undefined_bedrock_symbols.cmake"
-                COMMENT "Checking the Sign test bridge for unresolved private Bedrock ABI symbols"
-                VERBATIM
-            )
-        endif()
-    endif()
-
     install(TARGETS sign_api
         RUNTIME DESTINATION plugins COMPONENT sign_package
         LIBRARY DESTINATION plugins COMPONENT sign_package
         ARCHIVE DESTINATION lib COMPONENT sign_package
     )
-    if(ENDSTONE_SIGN_BUILD_LIVE_PYTHON)
-        install(TARGETS _endstone_sign_live
-            RUNTIME DESTINATION python COMPONENT sign_package
-            LIBRARY DESTINATION python COMPONENT sign_package
-        )
-    endif()
     install(DIRECTORY python/endstone_sign DESTINATION python COMPONENT sign_package
         PATTERN "__pycache__" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
         PATTERN "*.pyo" EXCLUDE
     )
     install(DIRECTORY include/endstone_sign DESTINATION include COMPONENT sign_package)
-    install(DIRECTORY docs native DESTINATION . COMPONENT sign_package
+    install(DIRECTORY docs DESTINATION . COMPONENT sign_package
         PATTERN "__pycache__" EXCLUDE
         PATTERN "*.pyc" EXCLUDE
     )
-    install(DIRECTORY tools DESTINATION . COMPONENT sign_package
-        PATTERN "__pycache__" EXCLUDE
-        PATTERN "*.pyc" EXCLUDE
-    )
-    install(DIRECTORY examples DESTINATION . COMPONENT sign_package
-        PATTERN "__pycache__" EXCLUDE
-        PATTERN "*.pyc" EXCLUDE
-    )
+    install(DIRECTORY examples/cpp DESTINATION examples COMPONENT sign_package)
+    install(FILES examples/python/full_sign_control.py
+        DESTINATION examples/python COMPONENT sign_package)
     install(FILES
         README.md
         LICENSE

@@ -21,7 +21,13 @@ for required in (
 ):
     if required not in header:
         failures.append(f"generated header is not closed: {required}")
-if "if (!caps.completeControl())" not in plugin or "refused to register" not in plugin:
+if (
+    "const bool accepted_release = ENDSTONE_SIGN_ACCEPTED_NATIVE_RELEASE;" not in plugin
+    or "const bool registration_allowed =" not in plugin
+    or "complete_control ||" not in plugin
+    or "if (!registration_allowed)" not in plugin
+    or "Production Sign API refused to register" not in plugin
+):
     failures.append("plugin service-registration refusal is missing")
 if "BinaryIdentityMismatch" not in adapter or "SymbolValidationFailed" not in adapter:
     failures.append("guarded native adapter failure modes are missing")

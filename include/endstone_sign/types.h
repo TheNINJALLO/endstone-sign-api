@@ -157,6 +157,9 @@ struct SignCapabilities {
     bool exact_build_match{};
     bool exact_binary_hash_match{};
     bool symbols_validated{};
+    // Retained in ABI v2. Stable exact-build releases set this after the
+    // release acceptance cycle; development and mismatched builds leave it
+    // false and therefore cannot claim complete control.
     bool stage_probe_passed{};
 
     // Consumers can require this minimum exact-build service contract, then

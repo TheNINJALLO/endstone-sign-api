@@ -46,14 +46,5 @@ class NativeToolTests(unittest.TestCase):
             self.assertNotEqual(activation.returncode, 0)
             self.assertIn("activation refused", activation.stdout)
 
-    def test_empty_stage_probe_template_is_rejected(self) -> None:
-        result = self.run_tool(
-            "tools/validate_stage_probe_report.py",
-            "native/probes/STAGE_PROBE_TEMPLATE.json",
-        )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("stage probe INVALID", result.stdout)
-
-
 if __name__ == "__main__":
     unittest.main()

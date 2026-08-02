@@ -17,23 +17,11 @@ PROJECTS = {
     "sign": {
         "slug": "endstone-sign-api",
         "plugin_prefix": "endstone_sign_bds_",
-        "wheel_prefix": "endstone_sign_tester",
         "supported_bds": {"1.26.33"},
     }
 }
 SUPPORTED_PLATFORMS = {"linux-x64", "windows-x64"}
 SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
-
-
-def pep440_version(release: str) -> str:
-    match = re.fullmatch(r"(\d+\.\d+\.\d+)(?:-(alpha|beta|rc)\.(\d+))?", release)
-    if not match:
-        raise SystemExit(f"Unsupported release version: {release!r}")
-    base, phase, serial = match.groups()
-    if phase is None:
-        return base
-    marker = {"alpha": "a", "beta": "b", "rc": "rc"}[phase]
-    return f"{base}{marker}{serial}"
 
 
 def sha256(path: Path) -> str:
@@ -110,21 +98,6 @@ def main() -> int:
     raw_plugin = release_dir / expected_plugin_name
     shutil.copy2(plugin, raw_plugin)
 
-    wheel_platform = "win_amd64" if args.platform.startswith("windows") else "linux_x86_64"
-    wheel_name = (
-        f"{info['wheel_prefix']}-{pep440_version(args.version)}-"
-        f"cp314-cp314-{wheel_platform}.whl"
-    )
-    bundled_wheel = stage / "plugins" / wheel_name
-    if not bundled_wheel.is_file() or bundled_wheel.stat().st_size == 0:
-        raise SystemExit(f"Missing exact-built Sign tester wheel: {bundled_wheel}")
-    release_wheel = release_dir / wheel_name
-    if release_wheel.exists() and sha256(release_wheel) != sha256(bundled_wheel):
-        raise SystemExit(
-            f"Standalone tester wheel does not match bundled wheel: {release_wheel}"
-        )
-    shutil.copy2(bundled_wheel, release_wheel)
-
     manifest_path = stage / "PACKAGE_MANIFEST.json"
     files = []
     for path in sorted(stage.rglob("*")):
@@ -146,7 +119,6 @@ def main() -> int:
         "platform": args.platform,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "primary_plugin": plugin.relative_to(stage).as_posix(),
-        "tester_wheel": bundled_wheel.relative_to(stage).as_posix(),
         "files": files,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -163,14 +135,12 @@ def main() -> int:
     checksums = release_dir / f"{release_stem}.sha256"
     checksums.write_text(
         f"{sha256(raw_plugin)}  {raw_plugin.name}\n"
-        f"{sha256(archive)}  {archive.name}\n"
-        f"{sha256(release_wheel)}  {release_wheel.name}\n",
+        f"{sha256(archive)}  {archive.name}\n",
         encoding="utf-8",
     )
 
     print(raw_plugin)
     print(archive)
-    print(release_wheel)
     print(checksums)
     return 0
 

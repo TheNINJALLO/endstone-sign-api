@@ -22,10 +22,10 @@ using endstone_sign::SignLocation;
 using endstone_sign::SignPatch;
 using endstone_sign::SignTextPatch;
 
-std::shared_ptr<LiveSignService> loadSupportedSignApi(endstone::Server &server) {
+std::shared_ptr<LiveSignService> loadCompleteSignApi(endstone::Server &server) {
     auto signs = server.getServiceManager().load<LiveSignService>(
         std::string(endstone_sign::SignServiceName));
-    if (!signs || !signs->capabilities().supportedRelease()) return {};
+    if (!signs || !signs->capabilities().completeControl()) return {};
     return signs;
 }
 

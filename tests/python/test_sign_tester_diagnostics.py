@@ -452,6 +452,10 @@ class FakeFullSystemBridge(FakeMatrixBridge):
         for name, value in values.items():
             if value is not None:
                 snapshot[side][name] = value
+        if message_is_text_object is True and text_object:
+            # Match the live adapter: capture exposes the rendered TextObject
+            # as lines, and disabling object mode does not restore older lines.
+            snapshot[side]["lines"] = ["a7", "", "", ""]
         return self._advance(snapshot)
 
     def set_editor_lock(
@@ -914,7 +918,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -974,7 +978,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1017,7 +1021,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1080,7 +1084,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = LyingRemovalBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",
@@ -1124,7 +1128,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1170,7 +1174,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1233,6 +1237,21 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
         self.assertEqual(terminal[-1][0], "completed")
         self.assertTrue(report["run_probe"]["move"]["owned_sign"])
+        source = report["cases"][0]
+        source_sign = source["sign"]
+        self.assertEqual(
+            bridge.snapshots[
+                (source_sign["x"], source_sign["y"], source_sign["z"])
+            ]["front"]["lines"],
+            source["edited_front_lines"],
+        )
+        text_object_step = next(
+            step
+            for step in report["run_steps"]
+            if step["operation"] == "capture_text_object"
+        )
+        self.assertTrue(text_object_step["response"]["restore_transition"]["ok"])
+        self.assertTrue(text_object_step["response"]["restore"]["ok"])
 
         plugin._matrix_cleanup_probe_scratch(context)
         self.assertEqual(report["cleanup"]["conflicts"], [])
@@ -1245,7 +1264,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1299,7 +1318,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeFullSystemBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1347,7 +1366,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         server = FakeMatrixServer(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=PLUGIN_CLASS._platform(),
             operator="tester",
             dimension="Overworld",
@@ -1389,7 +1408,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         config = PLUGIN_MODULE.load_acceptance_config()
         platform = PLUGIN_CLASS._platform()
         matrix = PLUGIN_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform=platform,
             operator="tester",
             dimension="Overworld",
@@ -1414,7 +1433,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         )
         stage.update(
             {
-                "tester_version": "0.2.1a1",
+                "tester_version": "0.2.1a2",
                 "matrix_run_id": matrix["run_id"],
                 "matrix_config_sha256": matrix["config_sha256"],
                 "world_name": "test-world",
@@ -1451,7 +1470,7 @@ class SignTesterDiagnosticTests(unittest.TestCase):
         dimension = FakeMatrixDimension()
         bridge = FakeMatrixBridge(dimension)
         report = AUTOMATION_MODULE.new_run_report(
-            plugin_version="0.2.1a1",
+            plugin_version="0.2.1a2",
             platform="linux-x64",
             operator="tester",
             dimension="Overworld",

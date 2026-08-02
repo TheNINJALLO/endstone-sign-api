@@ -1,6 +1,6 @@
 # Build status
 
-Version: **0.2.1-alpha.1**
+Version: **0.2.1-alpha.2**
 
 ## Portable core
 
@@ -84,6 +84,6 @@ Alpha.5 is superseded after its Linux matrix aborted on the invalid
 48 default cases, including the corrected legacy dark-oak standing and wall
 identifiers. Expected unsupported advanced and manual checks remained
 skipped/pending, so stage-probe and complete-control activation remain closed.
-Version 0.2.1-alpha.1 exposes all exact-Linux layers for one strict acceptance
+Version 0.2.1-alpha.2 exposes all exact-Linux layers for one strict acceptance
 run. It does not claim complete control until the report, log, and world backup
 pass validation and the evidence gate is reviewed.

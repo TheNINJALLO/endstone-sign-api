@@ -18,12 +18,11 @@ recognizes the long standalone filename published in alpha.3 and searches
 beside the actual server executable when a hosting panel uses a different
 working directory.
 
-Download the green branch workflow artifact and verify its platform manifest:
+Download the tagged prerelease and verify its platform manifest:
 
 ```bash
-gh run download <RUN_ID> \
+gh release download v0.2.1-alpha.2 \
   --repo TheNINJALLO/endstone-sign-api \
-  --name endstone-sign-api-release-1.26.33-linux-x64 \
   --dir sign-api-0.2.1-alpha.2
 cd sign-api-0.2.1-alpha.2
 sha256sum --check endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256

@@ -105,8 +105,8 @@ checkpoints, restart evidence, log, and world backup pass validation.
 ## 📦 Install the Linux qualification candidate
 
 The exact Linux build, asset verification, wheel smoke test, and downstream
-command tests passed in [GitHub Actions run `30707456488`](https://github.com/TheNINJALLO/endstone-sign-api/actions/runs/30707456488).
-Download that build and verify all packaged checksums:
+command tests passed in [GitHub Actions run `30725337982`](https://github.com/TheNINJALLO/endstone-sign-api/actions/runs/30725337982).
+Download the tagged prerelease and verify its platform checksums:
 
 | Deliverable | Verified filename |
 |---|---|
@@ -116,9 +116,8 @@ Download that build and verify all packaged checksums:
 | SHA-256 manifest | `endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256` |
 
 ```bash
-gh run download 30707456488 \
+gh release download v0.2.1-alpha.2 \
   --repo TheNINJALLO/endstone-sign-api \
-  --name endstone-sign-api-release-1.26.33-linux-x64 \
   --dir sign-api-0.2.1-alpha.2
 cd sign-api-0.2.1-alpha.2
 sha256sum --check endstone-sign-api-v0.2.1-alpha.2-bds-1.26.33-linux-x64.sha256
